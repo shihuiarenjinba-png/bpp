@@ -1,6 +1,6 @@
 from fpdf import FPDF
 import tempfile
-import io
+import os
 
 # ==========================================
 # 📄 Custom PDF Class
@@ -24,20 +24,16 @@ class PDF(FPDF):
 
     def chapter_body(self, body):
         self.set_font('Arial', '', 10)
-        self.multi_cell(0, 5, body)
+        # Check for non-latin characters support issues roughly
+        safe_body = body.encode('latin-1', 'replace').decode('latin-1')
+        self.multi_cell(0, 5, safe_body)
         self.ln()
     
-    # ▼▼▼ NEW: Smart Page Break System ▼▼▼
     def check_page_break(self, height_needed):
         """
-        Check if the current page has enough space for the element.
-        If not, add a new page.
-        Assuming A4 height ~297mm, margins ~20-30mm total.
-        Usable height is approx 270mm.
+        Check if the current page has enough space.
         """
-        # Get current Y position
         current_y = self.get_y()
-        # Threshold: page height - bottom margin
         page_height_limit = 270 
         
         if current_y + height_needed > page_height_limit:
@@ -64,11 +60,10 @@ def create_pdf_report(payload, figs):
             pdf.multi_cell(0, 5, safe_note, border=1)
             pdf.ln(5)
 
-        # --- 1. Executive Summary & AI Detailed Review ---
+        # --- 1. Executive Summary ---
         pdf.chapter_title("1. Portfolio Executive Summary")
         
         metrics = payload.get('metrics', {})
-        # Create a visually structured text block for metrics
         pdf.set_font('Arial', '', 10)
         metrics_text = (
             f"CAGR (Growth):      {metrics.get('CAGR', 'N/A')}\n"
@@ -79,7 +74,7 @@ def create_pdf_report(payload, figs):
         pdf.multi_cell(0, 5, metrics_text)
         pdf.ln(3)
 
-        # ▼▼▼ Detailed AI Review Section ▼▼▼
+        # Detailed AI Review
         if 'detailed_review' in payload:
             pdf.set_font('Arial', 'B', 10)
             pdf.cell(0, 6, "AI Strategic Assessment:", 0, 1)
@@ -88,79 +83,78 @@ def create_pdf_report(payload, figs):
             pdf.multi_cell(0, 5, safe_review)
             pdf.ln(5)
 
-        # --- AI Diagnosis (Color Coded) ---
+        # --- AI Diagnosis ---
         if 'ai_diagnosis' in payload:
             diag = payload['ai_diagnosis']
-            pdf.check_page_break(50) # Ensure this block stays together
+            pdf.check_page_break(50)
             
             pdf.set_font('Arial', 'B', 11)
             pdf.cell(0, 8, "Diagnosis & Action Plan:", 0, 1)
 
-            # 1. Status
+            # Status
             pdf.set_font('Arial', 'B', 10)
             pdf.cell(0, 5, "[ Diagnosis ]", 0, 1)
             pdf.set_font('Arial', '', 10)
-            safe_status = diag['status'].encode('latin-1', 'replace').decode('latin-1')
-            pdf.multi_cell(0, 5, safe_status)
+            pdf.multi_cell(0, 5, diag['status'].encode('latin-1', 'replace').decode('latin-1'))
             pdf.ln(2)
 
-            # 2. Risk (Red)
+            # Risk
             pdf.set_font('Arial', 'B', 10)
             pdf.set_text_color(200, 50, 50) 
             pdf.cell(0, 5, "[ Risk Alert ]", 0, 1)
             pdf.set_text_color(0, 0, 0)
             pdf.set_font('Arial', '', 10)
-            safe_risk = diag['risk'].encode('latin-1', 'replace').decode('latin-1')
-            pdf.multi_cell(0, 5, safe_risk)
+            pdf.multi_cell(0, 5, diag['risk'].encode('latin-1', 'replace').decode('latin-1'))
             pdf.ln(2)
 
-            # 3. Action (Green)
+            # Action
             pdf.set_font('Arial', 'B', 10)
             pdf.set_text_color(0, 100, 0)
             pdf.cell(0, 5, "[ Action Plan ]", 0, 1)
             pdf.set_text_color(0, 0, 0) 
             pdf.set_font('Arial', '', 10)
-            safe_action = diag['action'].encode('latin-1', 'replace').decode('latin-1')
-            pdf.multi_cell(0, 5, safe_action)
+            pdf.multi_cell(0, 5, diag['action'].encode('latin-1', 'replace').decode('latin-1'))
             pdf.ln(5)
 
-        # --- 2. Visual Analysis (Smart Page Break Enabled) ---
-        pdf.add_page() # Force start of visual section on new page for cleanliness
+        # --- 2. Visual Analysis ---
+        pdf.add_page()
         pdf.chapter_title("2. Visual Analysis")
         
         target_order = ['pie', 'correlation', 'history', 'factor_beta', 'mc']
         
-        for key in target_order:
-            if key in figs and figs[key]:
-                try:
-                    # Check space before inserting image (approx 90mm height needed for title + img)
-                    pdf.check_page_break(90)
-                    
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
-                        figs[key].write_image(tmpfile.name, width=600, height=350)
+        # Temporary directory for images
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            for key in target_order:
+                if key in figs and figs[key]:
+                    try:
+                        pdf.check_page_break(90)
+                        
+                        img_path = os.path.join(tmpdirname, f"{key}.png")
+                        # Kaleido is used here. If it fails, we skip the image but not the PDF.
+                        figs[key].write_image(img_path, width=600, height=350, engine="kaleido")
                         
                         pdf.set_font('Arial', 'B', 10)
                         pdf.cell(0, 8, f"Figure: {key.upper().replace('_', ' ')}", 0, 1)
-                        pdf.image(tmpfile.name, w=170)
+                        pdf.image(img_path, w=170)
                         pdf.ln(5)
-                # 変更後
-                except Exception as img_err:
-                    st.error(f"Image Error: {img_err}") # 画面にエラーを表示
-                    print(f"Log Image Error: {img_err}") # ログにエラーを記録
+                    except Exception as img_err:
+                        print(f"Image Generation Error for {key}: {img_err}")
+                        pdf.set_font('Arial', 'I', 8)
+                        pdf.set_text_color(255, 0, 0)
+                        pdf.cell(0, 5, f"[Image Generation Failed: {key}]", 0, 1)
+                        pdf.set_text_color(0, 0, 0)
 
         # --- 3. Factor Analysis ---
         if 'factor_comment' in payload:
-            pdf.check_page_break(40) # Check space for text block
+            pdf.check_page_break(40)
             pdf.chapter_title("3. Factor Analysis & AI Insight")
-            comment = payload['factor_comment'].encode('latin-1', 'replace').decode('latin-1')
-            pdf.chapter_body(comment)
+            pdf.chapter_body(payload['factor_comment'])
 
         # --- 4. Monte Carlo ---
         if 'mc_stats' in payload:
             pdf.check_page_break(30)
             pdf.chapter_title("4. Future Projections (Monte Carlo)")
-            mc_text = payload['mc_stats'].encode('latin-1', 'replace').decode('latin-1')
-            pdf.chapter_body(mc_text)
+            pdf.chapter_body(payload['mc_stats'])
 
         # --- Disclaimer ---
         pdf.ln(10)
