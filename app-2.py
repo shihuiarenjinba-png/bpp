@@ -3,23 +3,27 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
-from plotly.subplots import make_subplots
-import os
-import requests
-import io
 import warnings
+
+# 将来の警告を無視する設定
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-# 🔗 Load Brain (Calculation Engine)
-from simulation_engine import MarketDataEngine, PortfolioAnalyzer, PortfolioDiagnosticEngine
-# ▼▼▼ Load PDF Generator ▼▼▼
-from pdf_generator import create_pdf_report
+# =========================================================
+# 🔗 モジュール読み込みチェック
+# =========================================================
+try:
+    from simulation_engine import MarketDataEngine, PortfolioAnalyzer, PortfolioDiagnosticEngine
+    from pdf_generator import create_pdf_report
+except ImportError as e:
+    st.error(f"❌ 重要ファイルが見つかりません: {e}")
+    st.info("app.py と同じフォルダに 'simulation_engine.py' と 'pdf_generator.py' があるか確認してください。")
+    st.stop()
 
 # =========================================================
-# ⚙️ Constants & Configuration
+# ⚙️ 定数・設定
 # =========================================================
 
-# 🎨 V17.2 Professional Color Palette
+# 🎨 カラーパレット
 COLORS = {
     'main': '#00FFFF',      # Neon Cyan
     'benchmark': '#FF69B4', # Hot Pink
@@ -35,7 +39,7 @@ COLORS = {
 
 st.set_page_config(page_title="Factor Simulator V17.2", layout="wide", page_icon="🧬")
 
-# Custom CSS for Professional UI
+# CSSスタイリング
 st.markdown("""
 <style>
     .metric-card { background-color: #262730; border: 1px solid #444; padding: 15px; border-radius: 8px; text-align: center; }
@@ -53,7 +57,7 @@ st.title("🧬 Factor & Stress Test Simulator V17.2")
 st.caption("Professional Edition: Portfolio Diagnosis, Monte Carlo, Risk Analysis (Stable Version)")
 
 # =========================================================
-# 🛠️ Session State Initialization
+# 🛠️ セッション状態の初期化
 # =========================================================
 if 'portfolio_data' not in st.session_state:
     st.session_state.portfolio_data = None
@@ -67,7 +71,7 @@ if 'figs' not in st.session_state:
     st.session_state.figs = {}
 
 # =========================================================
-# 🏗️ Sidebar: Portfolio Construction
+# 🏗️ サイドバー: ポートフォリオ設定
 # =========================================================
 with st.sidebar:
     st.header("⚙️ Settings Panel")
@@ -126,13 +130,13 @@ with st.sidebar:
 
 
 # =========================================================
-# 🚀 Main Logic Flow (Calculation)
+# 🚀 メインロジック (計算実行)
 # =========================================================
 
 if analyze_btn:
     with st.spinner("⏳ Fetching data & running 7,500 simulations..."):
         try:
-            # 1. Parse Portfolio
+            # 1. 入力解析
             raw_items = [item.strip() for item in input_text.split(',')]
             parsed_dict = {}
             for item in raw_items:
@@ -143,25 +147,31 @@ if analyze_btn:
 
             if not parsed_dict: st.stop()
 
-            # 🚀 Call Brain
+            # 🚀 Engine 呼び出し
             engine = MarketDataEngine()
             valid_assets, _ = engine.validate_tickers(parsed_dict)
-            if not valid_assets: st.stop()
+            if not valid_assets:
+                st.error("有効なティッカーが見つかりませんでした。")
+                st.stop()
 
             tickers = list(valid_assets.keys())
             hist_returns = engine.fetch_historical_prices(tickers)
 
+            if hist_returns.empty:
+                 st.error("価格データの取得に失敗しました。")
+                 st.stop()
+
             weights_clean = {k: v['weight'] for k, v in valid_assets.items()}
             port_series, final_weights = PortfolioAnalyzer.create_synthetic_history(hist_returns, weights_clean)
 
-            # 2. Fetch Benchmark
+            # 2. ベンチマーク取得
             is_jpy_bench = True if bench_ticker in ['^TPX', '^N225', '1306.T'] or bench_ticker.endswith('.T') else False
             bench_series = engine.fetch_benchmark_data(bench_ticker, is_jpy_asset=is_jpy_bench)
 
-            # 3. Fetch Factors
+            # 3. ファクター取得
             french_factors = engine.fetch_french_factors(region_code)
 
-            # Save Data
+            # データ保存
             st.session_state.portfolio_data = {
                 'returns': port_series,
                 'benchmark': bench_series,
@@ -173,7 +183,7 @@ if analyze_btn:
                 'bench_name': selected_bench_label,
             }
             
-            # Reset PDF cache on new run
+            # 再計算時にキャッシュをクリア
             st.session_state.pdf_bytes = None
             st.session_state.analysis_done = False
 
@@ -183,7 +193,7 @@ if analyze_btn:
 
 
 # =========================================================
-# 📊 Dashboard Display & Pre-Calculation for PDF
+# 📊 ダッシュボード表示 & PDF用データ準備
 # =========================================================
 
 if st.session_state.portfolio_data:
@@ -192,7 +202,7 @@ if st.session_state.portfolio_data:
     port_ret = data['returns']
     bench_ret = data['benchmark']
 
-    # --- 1. Basic Metrics Calculation ---
+    # --- 1. 基本指標 ---
     total_ret_cum = (1 + port_ret).cumprod()
     cagr = (total_ret_cum.iloc[-1])**(12/len(port_ret)) - 1
     vol = port_ret.std() * np.sqrt(12)
@@ -202,14 +212,14 @@ if st.session_state.portfolio_data:
     info_ratio, track_err = analyzer.calculate_information_ratio(port_ret, bench_ret)
     sharpe_ratio = (cagr - 0.02) / vol # Simplified Sharpe
 
-    # --- 2. Advanced Calculation ---
+    # --- 2. 高度計算 ---
     params, r_sq = analyzer.perform_factor_regression(port_ret, data['factors'])
     if params is not None:
         factor_comment = PortfolioDiagnosticEngine.generate_factor_report(params)
     else:
         factor_comment = "No factor data available."
 
-    # Monte Carlo
+    # モンテカルロ
     sim_years = 20
     init_inv = 1000000
     df_stats, final_values = analyzer.run_monte_carlo_simulation(port_ret, n_years=sim_years, n_simulations=7500, initial_investment=init_inv)
@@ -218,21 +228,20 @@ if st.session_state.portfolio_data:
     final_p10 = np.percentile(final_values, 10)
     final_p90 = np.percentile(final_values, 90)
     
-    # Correlation
+    # 相関行列
     corr_matrix = analyzer.calculate_correlation_matrix(data['components'])
     fig_corr_report = None
     if not corr_matrix.empty:
         fig_corr_report = px.imshow(corr_matrix, text_auto='.2f', aspect="auto", color_continuous_scale='RdBu_r', zmin=-1, zmax=1)
 
-    # AI Diagnosis (Base)
+    # AI診断
     pca_ratio, _ = analyzer.perform_pca(data['components'])
     report = PortfolioDiagnosticEngine.generate_report(data['weights'], pca_ratio, port_ret)
 
-    # ▼▼▼ NEW: Generate Detailed AI Review (Enhanced Content) ▼▼▼
-    # 数値に基づいて、より詳細な文章を動的に生成します
+    # ▼▼▼ 詳細レビュー生成 ▼▼▼
     detailed_review = []
     
-    # Return/Risk Assessment
+    # 効率性評価
     if sharpe_ratio > 1.0:
         detailed_review.append(f"✅ Efficiency: The portfolio demonstrates excellent risk-adjusted returns (Sharpe: {sharpe_ratio:.2f}). You are getting well-compensated for the risk taken.")
     elif sharpe_ratio > 0.6:
@@ -240,7 +249,7 @@ if st.session_state.portfolio_data:
     else:
         detailed_review.append(f"⚠️ Efficiency: Risk-adjusted returns are lower than ideal (Sharpe: {sharpe_ratio:.2f}). Consider increasing diversification or reducing volatile assets.")
 
-    # Volatility Assessment
+    # ボラティリティ評価
     if vol < 0.12:
         detailed_review.append(f"🛡️ Stability: Volatility is low ({vol:.2%}), suggesting a defensive posture suitable for capital preservation.")
     elif vol < 0.18:
@@ -248,12 +257,12 @@ if st.session_state.portfolio_data:
     else:
         detailed_review.append(f"🔥 Stability: Volatility is high ({vol:.2%}). Ensure your risk tolerance matches this potential variance.")
 
-    # Drawdown Assessment
+    # ドローダウン評価
     detailed_review.append(f"📉 Stress Test: The historical maximum drawdown was {max_dd:.2%}. In future bear markets, expect temporary declines of similar magnitude.")
 
     detailed_review_str = "\n".join(detailed_review)
 
-    # --- 3. Prepare Payload for PDF ---
+    # --- 3. Payload 作成 ---
     analysis_payload = {
         'metrics': {
             'CAGR': f"{cagr:.2%}",
@@ -269,7 +278,6 @@ if st.session_state.portfolio_data:
             'risk': report['risk_comment'],
             'action': report['action_plan']
         },
-        # 追加: 生成した詳細レビューをPayloadに含める
         'detailed_review': detailed_review_str,
         'mc_stats': f"Median Outlook: {final_median:,.0f} JPY | "
                     f"Pessimistic (10%): {final_p10:,.0f} JPY | "
@@ -280,7 +288,7 @@ if st.session_state.portfolio_data:
     if fig_corr_report:
         figs_for_report['correlation'] = fig_corr_report
 
-    # --- 4. Dashboard Visualization (UI) ---
+    # --- 4. ビジュアライゼーション表示 ---
     st.markdown("---")
 
     c1, c2, c3, c4, c5 = st.columns(5)
@@ -325,7 +333,6 @@ if st.session_state.portfolio_data:
             </div>
             """, unsafe_allow_html=True)
             
-            # 詳細レビューも画面に表示しておく
             st.info(f"🤖 **AI Analysis:**\n\n{detailed_review_str}")
 
             st.markdown("---")
@@ -468,14 +475,14 @@ if st.session_state.portfolio_data:
             figs_for_report['mc'] = fig_mc_hist
             st.success(f"✅ Simulation Complete: **7,500 scenarios** generated.")
 
-    # --- 5. Save Final Data to Session State ---
+    # --- 5. データ保存 ---
     st.session_state.payload = analysis_payload
     st.session_state.figs = figs_for_report
     st.session_state.analysis_done = True
 
 
 # =========================================================
-# 📄 PDF Download Section (Stabilized)
+# 📄 PDF ダウンロードセクション
 # =========================================================
 st.markdown("---")
 
