@@ -7,10 +7,9 @@ from statsmodels.regression.rolling import RollingOLS
 from sklearn.decomposition import PCA
 import pandas_datareader.data as web
 from datetime import datetime
-import unicodedata  # 追加: 全角文字対応のため
 
 # =========================================================
-# 🛠️ Class Definitions (Brain: V17.2 - Japanese Edition)
+# 🛠️ Class Definitions (Brain: V18.1 - Visual Logic Enhanced)
 # =========================================================
 
 class MarketDataEngine:
@@ -21,39 +20,23 @@ class MarketDataEngine:
         self.usdjpy_cache = None
 
     def validate_tickers(self, input_dict):
-        """Check if tickers exist with Japanese input support."""
+        """Check if tickers exist."""
         valid_data = {}
         invalid_tickers = []
         status_text = st.empty()
         
         for ticker, weight in input_dict.items():
-            # ▼▼▼ 追加: 日本語入力（全角）のサニタイズ処理 ▼▼▼
-            try:
-                # 全角英数(Ａ)を半角(A)に変換し、大文字化、空白除去
-                clean_ticker = unicodedata.normalize('NFKC', str(ticker)).upper().strip()
-                
-                # 重みも全角数字の可能性があるため変換
-                if isinstance(weight, str):
-                    clean_weight = float(unicodedata.normalize('NFKC', weight))
-                else:
-                    clean_weight = float(weight)
-            except:
-                # 変換不能な場合は元の値を使用（後のtryで弾かれる）
-                clean_ticker = ticker
-                clean_weight = weight
-            # ▲▲▲ 追加終了 ▲▲▲
-
             try:
                 # Check via yfinance
-                tick = yf.Ticker(clean_ticker)
+                tick = yf.Ticker(ticker)
                 hist = tick.history(period="5d")
                 if not hist.empty:
-                    valid_data[clean_ticker] = {'name': clean_ticker, 'weight': clean_weight}
-                    status_text.text(f"✅ OK: {clean_ticker}")
+                    valid_data[ticker] = {'name': ticker, 'weight': weight}
+                    status_text.text(f"✅ OK: {ticker}")
                 else:
-                    invalid_tickers.append(clean_ticker)
+                    invalid_tickers.append(ticker)
             except:
-                invalid_tickers.append(clean_ticker)
+                invalid_tickers.append(ticker)
         
         status_text.empty()
         return valid_data, invalid_tickers
@@ -87,7 +70,7 @@ class MarketDataEngine:
 
     @st.cache_data(ttl=3600*24*7)
     def fetch_french_factors(_self, region='US'):
-        """Fetch Fama-French Factors."""
+        """Fetch Fama-French Factors (Robust Fallback)."""
         try:
             name = 'F-F_Research_Data_Factors'
             if region == 'Japan': 
@@ -95,17 +78,18 @@ class MarketDataEngine:
             elif region == 'Global': 
                 name = 'Global_3_Factors'
 
+            # Attempt to fetch data
             ff_data = web.DataReader(name, 'famafrench', start=_self.start_date, end=_self.end_date)[0]
-            ff_data = ff_data / 100.0
             
+            # Process data if successful
+            ff_data = ff_data / 100.0
             ff_data.index = ff_data.index.to_timestamp(freq='M')
             
             if ff_data.index.tz is not None: 
                 ff_data.index = ff_data.index.tz_localize(None)
             
             return ff_data
-        except Exception as e:
-            print(f"Factor fetch error: {e}")
+        except Exception:
             return pd.DataFrame()
 
     @st.cache_data(ttl=3600*24)
@@ -225,7 +209,7 @@ class PortfolioAnalyzer:
 
     @staticmethod
     def perform_factor_regression(port_ret, factor_df):
-        if port_ret.empty or factor_df.empty:
+        if port_ret.empty or factor_df is None or factor_df.empty:
             return None, None
 
         df_y = port_ret.to_frame(name='y')
@@ -238,6 +222,8 @@ class PortfolioAnalyzer:
         
         y = merged['y']
         X_cols = [c for c in merged.columns if c in ['Mkt-RF', 'SMB', 'HML']]
+        if not X_cols: return None, None
+        
         X = merged[X_cols]
         X = sm.add_constant(X)
 
@@ -320,10 +306,19 @@ class PortfolioAnalyzer:
 
     @staticmethod
     def perform_pca(returns_df):
-        if returns_df.shape[1] < 2: return 1.0, None
+        if returns_df.shape[1] < 2: 
+            return 1.0, None
+        
         pca = PCA(n_components=2)
         pca.fit(returns_df)
-        return pca.explained_variance_ratio_[0], pca
+        
+        loadings = pd.DataFrame(
+            pca.components_.T, 
+            index=returns_df.columns, 
+            columns=['PC1', 'PC2']
+        )
+        
+        return pca.explained_variance_ratio_[0], loadings
 
     @staticmethod
     def rolling_beta_analysis(port_ret, factor_df, window=24):
@@ -361,14 +356,29 @@ class PortfolioAnalyzer:
 
     @staticmethod
     def cost_drag_simulation(port_ret, cost_tier):
+        """
+        Calculates impact of costs.
+        FIXED: Returns exactly 4 values to match app.py expectation.
+        Returns: Gross Curve, Net Curve, Loss Amount, Loss Percentage
+        """
         if port_ret.empty: return pd.Series(), pd.Series(), 0, 0
+        
         cost_map = {'Low': 0.001, 'Medium': 0.006, 'High': 0.020}
         annual_cost = cost_map.get(cost_tier, 0.006)
         monthly_cost = (1 + annual_cost)**(1/12) - 1
+        
         net_ret = port_ret - monthly_cost
         gross_cum = (1 + port_ret).cumprod()
         net_cum = (1 + net_ret).cumprod()
-        return gross_cum, net_cum, gross_cum.iloc[-1] - net_cum.iloc[-1], annual_cost
+        
+        final_gross = gross_cum.iloc[-1]
+        final_net = net_cum.iloc[-1]
+        
+        diff_val = final_gross - final_net
+        lost_pct = 1 - (final_net / final_gross) 
+        
+        # Returned annual_cost removed to fix unpacking error in app.py
+        return gross_cum, net_cum, diff_val, lost_pct
 
     @staticmethod
     def calculate_strict_attribution(returns_df, weights_dict):
@@ -405,6 +415,94 @@ class PortfolioAnalyzer:
         
         return final_attribution.sort_values(ascending=True)
 
+    @staticmethod
+    def calculate_risk_contribution(returns_df, weights_dict):
+        """
+        Calculates Marginal Risk Contribution (MRC).
+        UPDATED: Removed sorting to maintain asset order for comparison charts.
+        """
+        assets = list(weights_dict.keys())
+        valid_assets = [a for a in assets if a in returns_df.columns]
+        if not valid_assets:
+            return pd.Series(dtype=float)
+
+        # Filter and Normalize weights
+        w_series = pd.Series({k: weights_dict[k] for k in valid_assets})
+        w_series = w_series / w_series.sum() 
+        
+        # Covariance Matrix (Annualized)
+        cov_matrix = returns_df[valid_assets].cov() * 12 
+        
+        # Portfolio Volatility
+        port_vol = np.sqrt(w_series.T @ cov_matrix @ w_series)
+        
+        # Marginal Risk Contribution: (Cov * w) / PortVol
+        mrc = cov_matrix @ w_series / port_vol
+        
+        # Risk Contribution: w * MRC
+        rc = w_series * mrc
+        
+        # Percent Contribution: RC / PortVol
+        rc_pct = rc / port_vol
+        
+        # Removed .sort_values(ascending=False) to keep alignment with weights
+        return rc_pct
+
+    @staticmethod
+    def calculate_label_offsets(values, min_dist=0.08, base_y=1.05):
+        """
+        Calculates Y-axis offsets for histogram labels to prevent overlap.
+        Args:
+            values: List or Series of x-values (stats).
+            min_dist: Minimum normalized distance to consider 'overlapping'.
+            base_y: Starting Y multiplier.
+        Returns:
+            List of Y multipliers [1.05, 1.2, 1.05, ...] corresponding to input values.
+        """
+        if not values: return []
+        
+        # Create a list of (index, value)
+        indexed_values = sorted(enumerate(values), key=lambda x: x[1])
+        
+        y_offsets = [base_y] * len(values)
+        
+        # Determine value range to normalize distance check
+        val_range = max(values) - min(values)
+        if val_range == 0: val_range = 1.0
+        
+        # Iterate through sorted values and stack levels if too close
+        levels = [base_y] * len(values) # temporary storage for sorted
+        current_level = base_y
+        
+        for i in range(1, len(indexed_values)):
+            curr_val = indexed_values[i][1]
+            prev_val = indexed_values[i-1][1]
+            
+            # Check normalized distance
+            dist = (curr_val - prev_val) / val_range
+            
+            if dist < min_dist:
+                # If close to previous, bump up level
+                # Toggle between 2-3 levels: base, base+0.15, base+0.3
+                prev_level = levels[i-1]
+                if prev_level == base_y:
+                    current_level = base_y + 0.15
+                elif prev_level == base_y + 0.15:
+                    current_level = base_y + 0.3
+                else:
+                    current_level = base_y # Reset if stack gets too high
+            else:
+                current_level = base_y
+            
+            levels[i] = current_level
+            
+        # Map back to original indices
+        final_offsets = [0.0] * len(values)
+        for i, (orig_idx, _) in enumerate(indexed_values):
+            final_offsets[orig_idx] = levels[i]
+            
+        return final_offsets
+
 class PortfolioDiagnosticEngine:
     @staticmethod
     def generate_report(weights_dict, pca_ratio, port_ret, benchmark_ret=None):
@@ -417,29 +515,27 @@ class PortfolioDiagnosticEngine:
         
         num_assets = len(weights_dict)
         
-        # ▼▼▼ 翻訳: 診断レポート ▼▼▼
         if num_assets == 1:
-            report["type"] = "🏹 一点集中型 (Sniper)"
-            report["diversification_comment"] = "分散ゼロ。すべての卵を一つのカゴに入れています。"
-            report["risk_comment"] = "⚠️ 個別銘柄リスクが最大化しています。"
-            report["action_plan"] = "少なくとも3〜5つの異なる資産（相関の低いもの）に分散してください。"
+            report["type"] = "🏹 集中投資 (スナイパー型)"
+            report["diversification_comment"] = "分散効果はゼロです。すべての卵を一つのカゴに入れています。"
+            report["risk_comment"] = "⚠️ 個別銘柄リスクを最大限に負っています。"
+            report["action_plan"] = "少なくとも3〜5つの相関の低い資産に分散することを推奨します。"
         else:
             if pca_ratio >= 0.85:
-                report["type"] = "⚠️ 見せかけの分散 (Fake Diversification)"
-                report["diversification_comment"] = f"変動の{pca_ratio*100:.1f}%が、実は単一の要因で説明されています。"
-                report["risk_comment"] = "すべての資産が同時に暴落するリスクが高い状態です。"
-                report["action_plan"] = "債券やコモディティなど、値動きの異なる資産を追加してください。"
+                report["type"] = "⚠️ 見せかけの分散 (フェイク・ダイバーシフィケーション)"
+                report["diversification_comment"] = f"変動の{pca_ratio*100:.1f}%が単一の要因（市場全体など）で説明されてしまいます。"
+                report["risk_comment"] = "市場暴落時に、保有資産すべてが同時に下落するリスクが高い状態です。"
+                report["action_plan"] = "株式以外の資産（債券、ゴールドなど）を追加し、リスク要因を分散してください。"
             elif pca_ratio <= 0.60:
-                report["type"] = "🏰 鉄壁の分散 (Fortress)"
-                report["diversification_comment"] = f"主要因による説明率は{pca_ratio*100:.1f}%に留まります。素晴らしい分散効果です。"
-                report["risk_comment"] = "不要なリスクが効果的に排除されています。"
-                report["action_plan"] = "現在のバランスは理想的です。定期的なリバランスで維持しましょう。"
+                report["type"] = "🏰 要塞型 (フォートレス)"
+                report["diversification_comment"] = f"メイン要因による説明率は{pca_ratio*100:.1f}%に留まり、独自の動きをする資産が組み込まれています。"
+                report["risk_comment"] = "無駄なリスクが効果的に分散され、防御力が高いポートフォリオです。"
+                report["action_plan"] = "現在のバランスは非常に良好です。リバランスを行い維持しましょう。"
             else:
-                report["type"] = "⚖️ バランス型 (Balanced)"
-                report["diversification_comment"] = f"主要因の支配率は{pca_ratio*100:.1f}%です。中程度の分散効果があります。"
-                report["risk_comment"] = "市場平均と似たような動きをする可能性が高いです。"
-                report["action_plan"] = "防御力を高めるために、債券比率の調整を検討してください。"
-        # ▲▲▲ 翻訳終了 ▲▲▲
+                report["type"] = "⚖️ バランス型"
+                report["diversification_comment"] = f"市場連動性は{pca_ratio*100:.1f}%で、標準的な分散レベルです。"
+                report["risk_comment"] = "市場平均と同程度のリスク・リターン特性を持つ可能性が高いです。"
+                report["action_plan"] = "より防御力を高めるなら、債券比率の調整やオルタナティブ資産の検討が有効です。"
 
         return report
 
@@ -449,43 +545,41 @@ class PortfolioDiagnosticEngine:
         skew = port_ret.skew()
         kurt = port_ret.kurt()
         desc = []
-        # ▼▼▼ 翻訳: 統計分布コメント ▼▼▼
-        if skew < -0.5: desc.append("⚠️ 負の歪度: 急激な下落（クラッシュ）のリスクがあります。")
-        elif skew > 0.5: desc.append("✅ 正の歪度: 大きな上振れが期待できる分布です。")
-        if kurt > 2.0: desc.append("⚠️ ファットテール: 通常よりも極端な事象（暴騰・暴落）が起きやすい状態です。")
-        # ▲▲▲ 翻訳終了 ▲▲▲
-        return " ".join(desc) if desc else "統計的に標準的な分布です（正規分布に近い）。"
+        if skew < -0.5: desc.append("⚠️ 負の歪度: 通常時は安定していますが、稀に大きな急落が起きるリスクがあります（コツコツドカン型）。")
+        elif skew > 0.5: desc.append("✅ 正の歪度: 損失は限定的ですが、稀に大きな利益が出る可能性があります。")
+        
+        if kurt > 2.0: desc.append("⚠️ ファットテール: 正規分布に比べて「極端な事象（暴騰・暴落）」が発生する確率が高い状態です。")
+        
+        return " ".join(desc) if desc else "統計的に標準的な分布（正規分布に近い）です。"
 
     @staticmethod
     def generate_factor_report(params):
         """Translate Factor Analysis."""
-        if params is None: return "N/A"
+        if params is None: return "データなし"
         
         comments = []
         
-        # ▼▼▼ 翻訳: ファクター分析コメント ▼▼▼
         # 1. HML
         hml = params.get('HML', 0)
         if hml > 0.15:
-            comments.append("✅ **割安株（バリュー）寄り:** 割安株や高配当株との連動性が高いです。")
+            comments.append("✅ **バリュー株選好:** 割安株や高配当株との連動性が高いです。")
         elif hml < -0.15:
-            comments.append("🚀 **成長株（グロース）寄り:** ハイテク株や成長株との連動性が高いです。")
+            comments.append("🚀 **グロース株選好:** 成長株やハイテク株との連動性が高いです。")
         else:
             comments.append("⚖️ **スタイル中立:** バリューとグロースのバランスが取れています。")
 
         # 2. SMB
         smb = params.get('SMB', 0)
         if smb > 0.15:
-            comments.append("🐣 **小型株効果:** 変動は大きいですが、高いリターンが期待できる傾向があります。")
+            comments.append("🐣 **小型株バイアス:** 変動は大きいですが、将来の成長余地を取りに行っています。")
         elif smb < -0.15:
-            comments.append("🐘 **大型株寄り:** 安定した大企業中心の構成です。")
+            comments.append("🐘 **大型株バイアス:** 安定した大企業中心の構成です。")
         
         # 3. Mkt-RF
         mkt = params.get('Mkt-RF', 1.0)
         if mkt > 1.1:
-            comments.append("🎢 **ハイ・ベータ:** 市場よりも大きく動く、積極的なリスク選好型です。")
+            comments.append("🎢 **ハイベータ（積極運用）:** 市場平均よりも大きく動く、攻撃的な構成です。")
         elif mkt < 0.9:
-            comments.append("🛡️ **ロー・ベータ:** 市場の下落に強い、防御的な構成です。")
-        # ▲▲▲ 翻訳終了 ▲▲▲
+            comments.append("🛡️ **ローベータ（守りの運用）:** 市場下落時にも比較的ダメージを受けにくい構成です。")
 
         return "\n".join(comments)
