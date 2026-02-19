@@ -133,7 +133,8 @@ with st.sidebar:
                                 height=100)
 
     st.markdown("---")
-    analyze_btn = st.button("🚀 分析を開始する", type="primary", use_container_width=True)
+    # 修正: width="stretch" (警告対応)
+    analyze_btn = st.button("🚀 分析を開始する", type="primary", width="stretch")
 
 # =========================================================
 # 🚀 メインロジック (計算実行)
@@ -334,7 +335,8 @@ if st.session_state.portfolio_data:
                          'steps': [{'range': [0, 60], 'color': "#333"}, {'range': [60, 100], 'color': "#555"}],
                          'threshold': {'line': {'color': "red", 'width': 4}, 'thickness': 0.75, 'value': 85}}
             ))
-            st.plotly_chart(fig_gauge, use_container_width=True)
+            # 修正: width="stretch"
+            st.plotly_chart(fig_gauge, width="stretch")
             
             st.markdown("#### 🧭 資産クラスターマップ (PCA)")
             try:
@@ -348,14 +350,14 @@ if st.session_state.portfolio_data:
                                          color=labels, title="資産の類似性マップ")
                     fig_pca.update_traces(textposition='top center', marker=dict(size=12))
                     fig_pca.update_layout(xaxis_title="第1成分", yaxis_title="第2成分", showlegend=False)
-                    st.plotly_chart(fig_pca, use_container_width=True)
+                    st.plotly_chart(fig_pca, width="stretch")
             except Exception as e:
                 st.warning(f"PCA散布図の描画エラー: {e}")
 
         with c2:
             st.subheader("資産配分")
             fig_pie = px.pie(values=list(data['weights'].values()), names=list(data['weights'].keys()), hole=0.4, color_discrete_sequence=px.colors.sequential.RdBu)
-            st.plotly_chart(fig_pie, use_container_width=True)
+            st.plotly_chart(fig_pie, width="stretch")
             figs_for_report['allocation'] = fig_pie
             
             st.markdown("---")
@@ -369,10 +371,16 @@ if st.session_state.portfolio_data:
                 <p><b>💡 アクションプラン:</b><br>{report['action_plan']}</p>
             </div>
             """, unsafe_allow_html=True)
-            
-            if fig_corr_report:
-                st.markdown("#### 🔥 相関マトリックス")
-                st.plotly_chart(fig_corr_report, use_container_width=True)
+        
+        # 修正: 相関ヒートマップをカラム外(Wide)へ移動 & 高さ自動調整
+        if fig_corr_report:
+            st.markdown("---")
+            st.markdown("#### 🔥 相関マトリックス")
+            # 銘柄数に応じた高さ計算 (最低400px, 1銘柄につき30px追加)
+            num_assets = len(data['components'].columns)
+            corr_height = max(400, 200 + (num_assets * 30))
+            fig_corr_report.update_layout(height=corr_height)
+            st.plotly_chart(fig_corr_report, width="stretch")
 
     with tab2:
         if data['factors'].empty:
@@ -389,7 +397,7 @@ if st.session_state.portfolio_data:
                         marker_color=colors, text=[f"{x:.2f}" for x in beta_df.values], textposition='auto'
                     ))
                     fig_beta.update_layout(title="ファクター感応度 (Beta)", xaxis_title="感応度", height=300)
-                    st.plotly_chart(fig_beta, use_container_width=True)
+                    st.plotly_chart(fig_beta, width="stretch")
                     st.caption(f"決定係数 (R²): {r_sq:.2%} (モデル説明力)")
                     figs_for_report['factors'] = fig_beta
                 
@@ -402,7 +410,8 @@ if st.session_state.portfolio_data:
                     """, unsafe_allow_html=True)
             
             st.markdown("---")
-            st.subheader("📈 ファクター推移 (ローリング分析)")
+            # 修正: タイトルを「全期間」に変更
+            st.subheader("📈 ファクター感応度の推移（全期間）")
             rolling_betas = analyzer.rolling_beta_analysis(port_ret, data['factors'])
             
             if not rolling_betas.empty:
@@ -419,8 +428,9 @@ if st.session_state.portfolio_data:
                     for c in cols:
                         fig_roll.add_trace(go.Scatter(x=rolling_betas.index, y=rolling_betas[c], name=c))
 
-                fig_roll.update_layout(title="過去12ヶ月のファクター感応度推移", yaxis_title="Beta", height=400)
-                st.plotly_chart(fig_roll, use_container_width=True)
+                # 修正: タイトル更新
+                fig_roll.update_layout(title="ファクター感応度の推移（全期間）", yaxis_title="Beta", height=400)
+                st.plotly_chart(fig_roll, width="stretch")
             else:
                 st.info("ローリング分析には少なくとも12ヶ月以上のデータが必要です。")
 
@@ -438,14 +448,14 @@ if st.session_state.portfolio_data:
             fig_hist.add_trace(go.Scatter(x=bench_cum.index, y=bench_cum, mode='lines', name=f"ベンチマーク ({data['bench_name']})", line=dict(color=COLORS['benchmark'], width=1.5)))
 
         fig_hist.add_trace(go.Scatter(x=cum_ret.index, y=cum_ret, fill='tozeroy', fillcolor=COLORS['bg_fill'], mode='lines', name='ポートフォリオ', line=dict(color=COLORS['main'], width=2.5)))
-        st.plotly_chart(fig_hist, use_container_width=True)
+        st.plotly_chart(fig_hist, width="stretch")
         figs_for_report['cumulative'] = fig_hist
 
         fig_dd = go.Figure()
         dd_series = (cum_ret / cum_ret.cummax() - 1)
         fig_dd.add_trace(go.Scatter(x=dd_series.index, y=dd_series, fill='tozeroy', name='Drawdown', line=dict(color='red')))
         fig_dd.update_layout(title="ドローダウン推移")
-        st.plotly_chart(fig_dd, use_container_width=True)
+        st.plotly_chart(fig_dd, width="stretch")
         figs_for_report['drawdown'] = fig_dd
 
         st.markdown("---")
@@ -468,7 +478,7 @@ if st.session_state.portfolio_data:
             fig_dist.add_trace(go.Scatter(x=x_range, y=y_norm, mode='lines', name='正規分布 (理論値)', line=dict(color='white', dash='dash', width=2)))
         
         fig_dist.update_layout(title="月次リターンの分布 vs 正規分布", xaxis_title="月次リターン", yaxis_title="密度", height=400)
-        st.plotly_chart(fig_dist, use_container_width=True)
+        st.plotly_chart(fig_dist, width="stretch")
 
     with tab4:
         st.subheader("コストによるリターン低下分析 (20年シミュレーション)")
@@ -507,7 +517,7 @@ if st.session_state.portfolio_data:
             ))
             
             fig_cost.update_layout(title="資産成長とコストの浸食イメージ (元本=1.0)", xaxis_title="経過年数", yaxis_title="倍率")
-            st.plotly_chart(fig_cost, use_container_width=True)
+            st.plotly_chart(fig_cost, width="stretch")
             
         with c2:
             st.error(f"💸 失われる価値: ▲{loss_amount:,.0f} 円")
@@ -521,29 +531,65 @@ if st.session_state.portfolio_data:
         if not attrib.empty:
             weights_series = pd.Series(data['weights'])
             common_idx = weights_series.index.intersection(attrib.index)
-            w_aligned = weights_series[common_idx] * 100 # %表記に
-            r_aligned = attrib[common_idx] * 100 # %表記に
             
-            fig_compare = go.Figure()
-            fig_compare.add_trace(go.Bar(
+            # 修正: グラフA用の相対%データ作成 (合計100%に正規化)
+            total_risk = attrib[common_idx].sum()
+            if total_risk != 0:
+                r_relative = (attrib[common_idx] / total_risk) * 100
+            else:
+                r_relative = attrib[common_idx] * 0
+            w_aligned = weights_series[common_idx] * 100 
+            
+            # 修正: グラフB用の絶対値データ (元の値を使用)
+            r_absolute = attrib[common_idx] * 100
+
+            # --- グラフA: 相対評価 (集中度確認用) ---
+            st.markdown("#### A. 相対リスク寄与度（集中度の確認）")
+            st.caption("全体のリスクを100%とした場合、どの銘柄がリスクを占めているか（分散の偏り）")
+            
+            fig_rel = go.Figure()
+            fig_rel.add_trace(go.Bar(
                 y=w_aligned.index, x=w_aligned.values, 
                 name='投資配分 (%)', orientation='h', 
                 marker_color='rgba(200, 200, 200, 0.6)'
             ))
-            fig_compare.add_trace(go.Bar(
-                y=r_aligned.index, x=r_aligned.values, 
-                name='リスク寄与 (%)', orientation='h', 
+            fig_rel.add_trace(go.Bar(
+                y=r_relative.index, x=r_relative.values, 
+                name='相対リスク寄与 (%)', orientation='h', 
                 marker_color=COLORS['hist_bar']
             ))
             
-            fig_compare.update_layout(
+            # 高さ自動調整
+            dynamic_height = max(400, 100 + (len(w_aligned) * 30))
+            fig_rel.update_layout(
                 barmode='group', 
-                title="「お金を置いている場所」と「リスクが発生している場所」のズレ",
-                xaxis_title="パーセント (%)",
-                yaxis={'categoryorder':'total ascending'}
+                title="投資配分 vs 相対リスク寄与度",
+                xaxis_title="構成比 (%)",
+                yaxis={'categoryorder':'total ascending'},
+                height=dynamic_height
             )
-            st.plotly_chart(fig_compare, use_container_width=True)
-            figs_for_report['attribution'] = fig_compare
+            st.plotly_chart(fig_rel, width="stretch")
+            
+            # --- グラフB: 絶対評価 (変動リスク確認用) ---
+            st.markdown("#### B. 絶対リスク寄与度（実際の変動量）")
+            st.caption("その銘柄が実際にポートフォリオの変動（ボラティリティ）をどれだけ作り出しているか")
+            
+            fig_abs = go.Figure()
+            fig_abs.add_trace(go.Bar(
+                y=r_absolute.index, x=r_absolute.values, 
+                name='絶対リスク寄与', orientation='h', 
+                marker_color='#FF6347'
+            ))
+            fig_abs.update_layout(
+                title="絶対リスク寄与度（数値）",
+                xaxis_title="変動寄与量",
+                yaxis={'categoryorder':'total ascending'},
+                height=dynamic_height
+            )
+            st.plotly_chart(fig_abs, width="stretch")
+
+            # PDF用には「相対評価(A)」を採用する (分散状況の説明に適しているため)
+            figs_for_report['attribution'] = fig_rel
 
     with tab6:
         st.subheader("🎲 モンテカルロ・シミュレーション (7,500回 / ファットテール対応)")
@@ -553,7 +599,7 @@ if st.session_state.portfolio_data:
             fig_mc.add_trace(go.Scatter(x=df_stats.index, y=df_stats['p10'], mode='lines', name='下位 10% (悲観)', line=dict(color=COLORS['p10'], width=1, dash='dot')))
             fig_mc.add_trace(go.Scatter(x=df_stats.index, y=df_stats['p90'], mode='lines', name='上位 10% (楽観)', line=dict(color=COLORS['p90'], width=1, dash='dot')))
             fig_mc.update_layout(title=f"20年後の資産予測 (元本: {init_inv:,} 円)", yaxis_title="評価額 (円)", height=500)
-            st.plotly_chart(fig_mc, use_container_width=True)
+            st.plotly_chart(fig_mc, width="stretch")
             figs_for_report['monte_carlo'] = fig_mc
 
             st.markdown("### 🏁 最終評価額の分布")
@@ -595,7 +641,7 @@ if st.session_state.portfolio_data:
                 xaxis=dict(range=[0, x_max_view]), 
                 yaxis=dict(range=[0, y_max_freq * 1.4])
             )
-            st.plotly_chart(fig_mc_hist, use_container_width=True)
+            st.plotly_chart(fig_mc_hist, width="stretch")
             
             st.success(f"✅ シミュレーション完了: **7,500 シナリオ** を生成しました。")
 
