@@ -126,8 +126,7 @@ def create_pdf_report(payload, figs_dict):
                 # -------------------------------------------------------
                 # 【重要修正】 グラフ画像のフォント設定 (文字化け対策)
                 # -------------------------------------------------------
-                # packages.txt でインストールしたシステムフォントを指定して
-                # 画像生成時に日本語や数字が正しくレンダリングされるようにします
+                # サーバー側フォント(Noto Sans CJK JP)を明示的に指定
                 fig.update_layout(
                     font=dict(family="Noto Sans CJK JP, sans-serif"),
                     title_font=dict(family="Noto Sans CJK JP, sans-serif")
@@ -143,7 +142,7 @@ def create_pdf_report(payload, figs_dict):
                 story.append(im)
                 story.append(Spacer(1, 15))
                 
-                # ページ区切りの調整 (大きなグラフの後は改ページを入れると見やすい)
+                # ページ区切りの調整
                 if key in ['monte_carlo', 'drawdown', 'correlation']: 
                     story.append(PageBreak())
                     
