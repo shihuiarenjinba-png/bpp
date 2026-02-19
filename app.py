@@ -5,9 +5,15 @@ import plotly.graph_objects as go
 import plotly.express as px
 import warnings
 from sklearn.decomposition import PCA
+import io
 
 # 将来の警告を無視する設定
 warnings.simplefilter(action='ignore', category=FutureWarning)
+
+# =========================================================
+# ⚙️ ページ設定 (最初に行う必要があります)
+# =========================================================
+st.set_page_config(page_title="Factor Simulator V18.1 JP", layout="wide", page_icon="🧬")
 
 # =========================================================
 # 🔗 モジュール読み込みチェック
@@ -21,10 +27,9 @@ except ImportError as e:
     st.stop()
 
 # =========================================================
-# ⚙️ 定数・設定
+# 🎨 定数・スタイル設定
 # =========================================================
 
-# 🎨 カラーパレット
 COLORS = {
     'main': '#00FFFF',      # Neon Cyan
     'benchmark': '#FF69B4', # Hot Pink
@@ -37,8 +42,6 @@ COLORS = {
     'cost_net': '#FF6347',  # Tomato Red
     'bg_fill': 'rgba(0, 255, 255, 0.1)'
 }
-
-st.set_page_config(page_title="Factor Simulator V18.1 JP", layout="wide", page_icon="🧬")
 
 # CSSスタイリング
 st.markdown("""
@@ -101,21 +104,16 @@ with st.sidebar:
 
     st.markdown("### 2. 分析モデル & ベンチマーク")
     
-    # ユーザーがリージョンを変更すると、Streamlitは再描画し、下のbench_optionsからデフォルト（index=0）を取得します
     target_region = st.selectbox("分析対象地域", ["US (米国)", "Japan (日本)", "Global (全世界)"], index=0)
     region_code = target_region.split()[0]
     
-    # ベンチマーク辞書の定義
     bench_options = {
         'US': {'S&P 500 (^GSPC)': '^GSPC', 'NASDAQ 100 (^NDX)': '^NDX'},
         'Japan': {'TOPIX (1306 ETF)': '1306.T', '日経平均 (^N225)': '^N225'},
         'Global': {'VT (全世界株式)': 'VT', 'MSCI ACWI (指数)': 'ACWI'}
     }
     
-    # リージョンに応じた選択肢リストを取得
     current_bench_options = list(bench_options[region_code].keys()) + ["Custom"]
-    
-    # index=0を指定することで、リージョン変更時にリストの先頭（標準ベンチマーク）に自動で切り替わるようにします
     selected_bench_label = st.selectbox("比較対象ベンチマーク", current_bench_options, index=0)
 
     if selected_bench_label == "Custom":
@@ -136,7 +134,6 @@ with st.sidebar:
 
     st.markdown("---")
     analyze_btn = st.button("🚀 分析を開始する", type="primary", use_container_width=True)
-
 
 # =========================================================
 # 🚀 メインロジック (計算実行)
@@ -195,17 +192,18 @@ if analyze_btn:
             # 再計算時にキャッシュをクリア
             st.session_state.pdf_bytes = None
             st.session_state.analysis_done = False
+            st.session_state.figs = {}
 
         except Exception as e:
             st.error(f"分析エラーが発生しました: {e}")
             st.stop()
-
 
 # =========================================================
 # 📊 ダッシュボード表示 & PDF用データ準備
 # =========================================================
 
 if st.session_state.portfolio_data:
+    # データの展開
     data = st.session_state.portfolio_data
     analyzer = PortfolioAnalyzer()
     port_ret = data['returns']
@@ -231,7 +229,7 @@ if st.session_state.portfolio_data:
 
     sharpe_ratio = (cagr - 0.02) / vol # Simplified Sharpe
 
-    # --- 2. 高度計算 ---
+    # --- 2. 高度計算 & 分析レポート ---
     params, r_sq = analyzer.perform_factor_regression(port_ret, data['factors'])
     if params is not None:
         factor_comment = PortfolioDiagnosticEngine.generate_factor_report(params)
@@ -257,7 +255,7 @@ if st.session_state.portfolio_data:
     pca_ratio, _ = analyzer.perform_pca(data['components'])
     report = PortfolioDiagnosticEngine.generate_report(data['weights'], pca_ratio, port_ret)
 
-    # ▼▼▼ 詳細レビュー生成 (日本語版) ▼▼▼
+    # ▼ 詳細レビュー生成 (日本語版) ▼
     detailed_review = []
     
     # 効率性評価
@@ -281,8 +279,8 @@ if st.session_state.portfolio_data:
 
     detailed_review_str = "\n".join(detailed_review)
 
-    # --- 3. Payload 作成 ---
-    analysis_payload = {
+    # --- 3. Payload 作成 (分析が完了した時点でセッションに保存) ---
+    st.session_state.payload = {
         'date': pd.Timestamp.now().strftime('%Y-%m-%d'),
         'metrics': {
             'CAGR': f"{cagr:.2%}",
@@ -305,7 +303,7 @@ if st.session_state.portfolio_data:
                     f"楽観シナリオ(90%): {final_p90:,.0f}円"
     }
 
-    # PDF用にグラフを格納
+    # PDF用にグラフを格納する一時辞書
     figs_for_report = {}
     if fig_corr_report:
         figs_for_report['correlation'] = fig_corr_report
@@ -475,8 +473,6 @@ if st.session_state.portfolio_data:
     with tab4:
         st.subheader("コストによるリターン低下分析 (20年シミュレーション)")
         
-        # 修正: エンジンの戻り値4つに対応 (gross, net, loss, cost_pct)
-        # 万が一エンジンがまだ3つしか返さない場合のエラーハンドリング
         sim_res = analyzer.cost_drag_simulation(port_ret, data['cost_tier'])
         if len(sim_res) == 4:
             gross, net, loss, cost_pct = sim_res
@@ -489,7 +485,6 @@ if st.session_state.portfolio_data:
         
         c1, c2 = st.columns([3, 1])
         with c1:
-            # 改善: 積層面積グラフ (Stacked Area) に変更して「失われた部分」を強調
             fig_cost = go.Figure()
             # 下層: 実質リターン
             fig_cost.add_trace(go.Scatter(
@@ -524,9 +519,7 @@ if st.session_state.portfolio_data:
         attrib = analyzer.calculate_strict_attribution(data['components'], data['weights'])
         
         if not attrib.empty:
-            # 改善: 投資比率とリスク寄与度を比較するグループ化棒グラフ
             weights_series = pd.Series(data['weights'])
-            # インデックスを合わせる
             common_idx = weights_series.index.intersection(attrib.index)
             w_aligned = weights_series[common_idx] * 100 # %表記に
             r_aligned = attrib[common_idx] * 100 # %表記に
@@ -572,7 +565,7 @@ if st.session_state.portfolio_data:
             mc3.metric("平均値", f"{final_mean:,.0f}")
             mc4.metric("楽観 (P90)", f"{final_p90:,.0f}")
 
-            # ヒストグラムの改善: ラベルが重ならないように高さを調整
+            # ヒストグラム
             fig_mc_hist = go.Figure()
             counts, _ = np.histogram(final_values, bins=100)
             y_max_freq = counts.max()
@@ -583,18 +576,15 @@ if st.session_state.portfolio_data:
                 marker_color=COLORS['hist_bar'], opacity=0.85
             ))
             
-            # 改善: ラベル位置のオフセット設定 (y_max_freq に対する倍率)
             lines_config = [
                 (final_p10, COLORS['p10'], f"悲観10%:<br>{final_p10:,.0f}", 1.05, "dash", 2),
-                (final_median, COLORS['median'], f"中央値:<br>{final_median:,.0f}", 1.25, "solid", 3), # 高さを変える
-                (final_mean, COLORS['mean'], f"平均値:<br>{final_mean:,.0f}", 1.15, "dot", 2),      # 高さを変える
+                (final_median, COLORS['median'], f"中央値:<br>{final_median:,.0f}", 1.25, "solid", 3), 
+                (final_mean, COLORS['mean'], f"平均値:<br>{final_mean:,.0f}", 1.15, "dot", 2),      
                 (final_p90, COLORS['p90'], f"楽観10%:<br>{final_p90:,.0f}", 1.05, "dash", 2),
             ]
             
             for val, color, label, h_rate, dash, width in lines_config:
-                # 垂直線
                 fig_mc_hist.add_vline(x=val, line_width=width, line_dash=dash, line_color=color)
-                # ラベル (y軸の位置を h_rate * y_max_freq に設定して重なり防止)
                 fig_mc_hist.add_annotation(
                     x=val, y=y_max_freq * h_rate,
                     text=label, showarrow=False, font=dict(color=color)
@@ -603,17 +593,15 @@ if st.session_state.portfolio_data:
             fig_mc_hist.update_layout(
                 xaxis_title="最終評価額 (円)", yaxis_title="頻度", showlegend=False,
                 xaxis=dict(range=[0, x_max_view]), 
-                # y軸の範囲を少し広げてラベルを表示させる
                 yaxis=dict(range=[0, y_max_freq * 1.4])
             )
             st.plotly_chart(fig_mc_hist, use_container_width=True)
             
             st.success(f"✅ シミュレーション完了: **7,500 シナリオ** を生成しました。")
 
-    # --- 5. データ保存 ---
-    st.session_state.payload = analysis_payload
-    st.session_state.figs = figs_for_report
+    # セッションへの保存 (分析完了フラグとグラフデータ)
     st.session_state.analysis_done = True
+    st.session_state.figs = figs_for_report
 
 
 # =========================================================
@@ -627,33 +615,30 @@ if st.session_state.analysis_done:
 
     col_gen, col_dl = st.columns([1, 1])
 
+    # PDF作成ボタン
     with col_gen:
         if st.button("📥 PDFレポートを作成"):
             with st.spinner("📄 PDFを生成中..."):
                 try:
                     final_payload = st.session_state.payload.copy()
-                    
-                    if 'advisor_note' in locals() or 'advisor_note' in globals():
-                        final_payload['advisor_note'] = advisor_note
+                    # サイドバーの現在の値を使用
+                    final_payload['advisor_note'] = advisor_note
                     
                     if final_payload and st.session_state.figs:
-                        # pdf_generator呼び出し
                         pdf_buffer = create_pdf_report(final_payload, st.session_state.figs)
                         
                         if pdf_buffer:
-                            # 修正: BytesIOオブジェクトからバイト列を取り出す (.getvalue())
-                            # これにより '_io.BytesIO has no len()' エラーを回避します
                             st.session_state.pdf_bytes = pdf_buffer.getvalue()
-                            
-                            st.success(f"✅ レポートの準備ができました! ({len(st.session_state.pdf_bytes):,} bytes)")
+                            st.success(f"✅ レポート生成完了! ({len(st.session_state.pdf_bytes):,} bytes)")
                         else:
-                            st.error("⚠️ PDFデータの生成に失敗しました（データが空です）。")
+                            st.error("⚠️ PDFデータの生成に失敗しました（空のデータ）。")
                     else:
-                        st.error("⚠️ シミュレーションデータが見つかりません。先に分析を実行してください。")
+                        st.error("⚠️ シミュレーションデータが見つかりません。")
                         
                 except Exception as e:
                     st.error(f"PDF生成エラー: {e}")
 
+    # ダウンロードボタン (生成済みの場合に表示)
     with col_dl:
         if st.session_state.pdf_bytes is not None:
             st.download_button(
