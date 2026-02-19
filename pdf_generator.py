@@ -23,7 +23,7 @@ def create_pdf_report(payload, figs_dict):
         title="Portfolio Report"
     )
     
-    # 2. 日本語フォント登録 (パス取得ロジックを強化)
+    # 2. 日本語フォント登録 (ReportLab用: 本文の表示に必要)
     # このファイル(pdf_generator.py)と同じ階層にある ipaexg.ttf を探しに行きます
     base_dir = os.path.dirname(os.path.abspath(__file__))
     font_filename = "ipaexg.ttf"
@@ -103,7 +103,6 @@ def create_pdf_report(payload, figs_dict):
     story.append(Spacer(1, 10))
 
     # グラフの表示順序とタイトル定義
-    # app.pyで生成されているキー: allocation, correlation, factors, cumulative, drawdown, attribution, monte_carlo
     plot_order = ['allocation', 'correlation', 'monte_carlo', 'cumulative', 'drawdown', 'factors', 'attribution']
     
     title_map = {
@@ -122,9 +121,20 @@ def create_pdf_report(payload, figs_dict):
             story.append(Paragraph(title_map.get(key, f"■ {key}"), heading_style))
             
             try:
-                # Plotly -> 画像変換
                 fig = figs_dict[key]
-                # 画像サイズ調整 (A4横幅に合わせるためwidth=800, scale=2などで高画質化して縮小表示)
+                
+                # -------------------------------------------------------
+                # 【重要修正】 グラフ画像のフォント設定 (文字化け対策)
+                # -------------------------------------------------------
+                # packages.txt でインストールしたシステムフォントを指定して
+                # 画像生成時に日本語や数字が正しくレンダリングされるようにします
+                fig.update_layout(
+                    font=dict(family="Noto Sans CJK JP, sans-serif"),
+                    title_font=dict(family="Noto Sans CJK JP, sans-serif")
+                )
+                
+                # Plotly -> 画像変換
+                # 画像サイズ調整 (A4横幅に合わせるためwidth=900, scale=2などで高画質化して縮小表示)
                 img_bytes = fig.to_image(format="png", width=900, height=500, scale=2)
                 img_io = io.BytesIO(img_bytes)
                 
