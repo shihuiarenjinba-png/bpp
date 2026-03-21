@@ -1,0 +1,16 @@
+streamlit
+pandas
+numpy
+plotly
+openpyxl
+scikit-learn
+yfinance
+statsmodels
+requests
+pandas-datareader
+hmmlearn
+PyWavelets
+reportlab
+kaleido==0.2.1
+Pillow
+
