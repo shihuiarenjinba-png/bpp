@@ -29,3 +29,7 @@ streamlit run apps/factor_forecast_lab/app.py
 - IFRS 変換は、現時点では `Accounting Workbench` 内でヒント出力までです。
 - `Factor Forecast Lab` はデモデータ、アップロードデータ、Ken French データの読み込みをサポートします。
 
+## Auto Agent
+
+- `auto_agent/` に Gmail 起点の AI 自動化エージェントひな形を追加しました。
+- 詳細は `auto_agent/README.md` を参照してください。

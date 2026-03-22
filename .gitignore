@@ -1,0 +1,10 @@
+.DS_Store
+__pycache__/
+.pytest_cache/
+*.pyc
+.env
+.venv/
+secrets/*.json
+var/auto_agent/*.json
+var/auto_agent/*.log
+var/auto_agent/drafts/
