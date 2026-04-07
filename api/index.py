@@ -1,0 +1,207 @@
+from __future__ import annotations
+
+
+HTML = """<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Finance App Collection</title>
+  <style>
+    :root {
+      --ink: #1e293b;
+      --muted: #5b677a;
+      --line: rgba(30, 41, 59, 0.1);
+      --card: rgba(255, 255, 255, 0.88);
+      --accent: #ef6b57;
+      --bg-a: #edf6ff;
+      --bg-b: #fff4ea;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Avenir Next", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(255,255,255,0.92), transparent 35%),
+        linear-gradient(135deg, var(--bg-a) 0%, var(--bg-b) 100%);
+    }
+    .wrap {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 32px 20px 56px;
+    }
+    .hero, .panel, .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 18px 44px rgba(30, 41, 59, 0.08);
+    }
+    .hero {
+      padding: 28px 28px 24px;
+      margin-bottom: 18px;
+    }
+    .kicker {
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    h1 {
+      margin: 0 0 10px 0;
+      font-size: 40px;
+      line-height: 1.06;
+    }
+    .lead {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.65;
+      max-width: 860px;
+    }
+    .panel {
+      padding: 18px 20px;
+      margin-bottom: 18px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+      margin-top: 14px;
+    }
+    .card {
+      padding: 18px 18px 16px;
+    }
+    .card h2 {
+      margin: 0 0 8px 0;
+      font-size: 21px;
+    }
+    .card p, li {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .card p {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+    }
+    .card ul {
+      margin: 10px 0 0 18px;
+      padding: 0;
+    }
+    .link-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    a.button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 14px;
+      border-radius: 999px;
+      text-decoration: none;
+      color: white;
+      background: #1f4fd6;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    a.subtle {
+      color: #1f4fd6;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    code {
+      background: rgba(30,41,59,0.06);
+      padding: 2px 6px;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <div class="kicker">Finance App Collection</div>
+      <h1>bpp research hub</h1>
+      <p class="lead">
+        このデプロイは Vercel 用の案内ページです。リポジトリ本体には Streamlit ベースの分析アプリが複数入っており、
+        ローカルでは <code>streamlit run app.py</code> で起動できます。Vercel では Python バックエンド入口が必要なため、
+        ここでは含まれている研究コードと関連リポジトリへの導線をまとめています。
+      </p>
+      <div class="link-row">
+        <a class="button" href="https://github.com/shihuiarenjinba-png/bpp">bpp repository</a>
+        <a class="button" href="https://github.com/shihuiarenjinba-png/app">app repository</a>
+        <a class="button" href="https://github.com/shihuiarenjinba-png/simulator">simulator repository</a>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="kicker">Included In This Repo</div>
+      <div class="grid">
+        <article class="card">
+          <h2>Accounting Workbench</h2>
+          <p>仕訳候補の整理、予算編成、現預金設定、Excel 出力に寄せた会計研究アプリです。</p>
+          <a class="subtle" href="https://github.com/shihuiarenjinba-png/bpp/tree/main/apps/accounting_workbench">View code</a>
+        </article>
+        <article class="card">
+          <h2>Behavioral Gap Lab</h2>
+          <p>伝統的ファイナンスと行動ファイナンスの価格形成の差を、シミュレーションで比較します。</p>
+          <a class="subtle" href="https://github.com/shihuiarenjinba-png/bpp/tree/main/apps/behavioral_gap_lab">View code</a>
+        </article>
+        <article class="card">
+          <h2>Factor Forecast Lab</h2>
+          <p>ローリング因子、レジーム、周期シグナルから次に優位になりやすいファクターを予測します。</p>
+          <a class="subtle" href="https://github.com/shihuiarenjinba-png/bpp/tree/main/apps/factor_forecast_lab">View code</a>
+        </article>
+        <article class="card">
+          <h2>Monetary Policy Lab</h2>
+          <p>政策金利とインフレの動きを確率的に眺める金融政策シミュレーターです。</p>
+          <a class="subtle" href="https://github.com/shihuiarenjinba-png/bpp/tree/main/apps/monetary_policy_lab">View code</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="kicker">Research Utilities</div>
+      <div class="grid">
+        <article class="card">
+          <h2>Shared Finance Core</h2>
+          <p>各アプリで共通に使うエンジン群です。会計、行動、因子、政策まわりをまとめています。</p>
+          <a class="subtle" href="https://github.com/shihuiarenjinba-png/bpp/tree/main/shared_finance">View code</a>
+        </article>
+        <article class="card">
+          <h2>Document Organizer</h2>
+          <p>研究関連の整理スクリプト群です。進捗資料や成果物生成の補助コードを含みます。</p>
+          <a class="subtle" href="https://github.com/shihuiarenjinba-png/bpp/tree/main/var">View code</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="kicker">How To Run Locally</div>
+      <div class="card">
+        <ul>
+          <li><code>pip install -r requirements.txt</code></li>
+          <li><code>streamlit run app.py</code></li>
+          <li>または <code>apps/...</code> 配下の各アプリを個別に起動</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+</body>
+</html>
+"""
+
+
+def app(environ, start_response):
+    body = HTML.encode("utf-8")
+    headers = [
+        ("Content-Type", "text/html; charset=utf-8"),
+        ("Content-Length", str(len(body))),
+    ]
+    start_response("200 OK", headers)
+    return [body]

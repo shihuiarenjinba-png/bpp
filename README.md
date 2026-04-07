@@ -11,6 +11,11 @@ streamlit run app.py
 
 左のナビゲーションから、各アプリを切り替えて使えます。
 
+## Vercel
+
+Vercel では Streamlit 自体を直接ホストする構成ではなく、`api/index.py` を Python エントリポイントとして使う案内ページを返すようにしています。
+そのため、Vercel デプロイ先では各分析アプリの概要とコード導線を確認でき、実際の分析画面はローカルの `streamlit run app.py` で使う想定です。
+
 ## Apps
 
 - `apps/accounting_workbench/app.py`
