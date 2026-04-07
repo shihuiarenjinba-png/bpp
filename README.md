@@ -13,7 +13,7 @@ streamlit run app.py
 
 ## Vercel
 
-Vercel では Streamlit 自体を直接ホストする構成ではなく、`api/index.py` を Python エントリポイントとして使う案内ページを返すようにしています。
+Vercel では Streamlit 自体を直接ホストする構成ではなく、依存の重い Python 実行環境を避けるため、静的な `index.html` を案内ページとして返すようにしています。
 そのため、Vercel デプロイ先では各分析アプリの概要とコード導線を確認でき、実際の分析画面はローカルの `streamlit run app.py` で使う想定です。
 
 ## Apps

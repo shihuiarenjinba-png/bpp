@@ -1,7 +1,4 @@
-from __future__ import annotations
-
-
-HTML = """<!doctype html>
+<!doctype html>
 <html lang="ja">
 <head>
   <meta charset="utf-8">
@@ -128,8 +125,8 @@ HTML = """<!doctype html>
       <div class="kicker">Finance App Collection</div>
       <h1>bpp research hub</h1>
       <p class="lead">
-        このデプロイは Vercel 用の案内ページです。リポジトリ本体には Streamlit ベースの分析アプリが複数入っており、
-        ローカルでは <code>streamlit run app.py</code> で起動できます。Vercel では Python バックエンド入口が必要なため、
+        このデプロイは Vercel 用のランディングページです。リポジトリ本体には Streamlit ベースの分析アプリが複数入っており、
+        ローカルでは <code>streamlit run app.py</code> で起動できます。Vercel では依存サイズ制限を避けるため、
         ここでは含まれている研究コードと関連リポジトリへの導線をまとめています。
       </p>
       <div class="link-row">
@@ -194,14 +191,3 @@ HTML = """<!doctype html>
   </div>
 </body>
 </html>
-"""
-
-
-def app(environ, start_response):
-    body = HTML.encode("utf-8")
-    headers = [
-        ("Content-Type", "text/html; charset=utf-8"),
-        ("Content-Length", str(len(body))),
-    ]
-    start_response("200 OK", headers)
-    return [body]
