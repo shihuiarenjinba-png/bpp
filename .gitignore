@@ -4,7 +4,14 @@ __pycache__/
 *.pyc
 .env
 .venv/
+.pycache_tmp/
 secrets/*.json
 var/auto_agent/*.json
 var/auto_agent/*.log
 var/auto_agent/drafts/
+var/auto_agent/screenshots/
+outputs/
+var/*.json
+var/__pycache__/
+app_stable/
+simulator/
