@@ -7,7 +7,7 @@
     }
   ],
   "functions": {
-    "api/**/*.py": {
+    "api/*.py": {
       "excludeFiles": "{auto_agent/**,apps/**,var/**,.cache/**,index.html,app.py,README.md,**/__pycache__/**}"
     }
   }
