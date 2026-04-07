@@ -5,6 +5,7 @@ __pycache__/
 .env
 .venv/
 .pycache_tmp/
+.cache/
 secrets/*.json
 var/auto_agent/*.json
 var/auto_agent/*.log

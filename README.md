@@ -1,6 +1,15 @@
 # Finance App Collection
 
-複数の独立した金融アプリを `Streamlit` で動かせる構成です。既存の `app_stable/` と `simulator/` はそのまま残しつつ、今夜の追加分は `apps/` と `shared_finance/` にまとめています。
+複数の金融アプリを `Streamlit` で切り替えて使える構成です。`bpp` 単体でも、ルートの [`app.py`](/Users/mitsuyoshitsuha/Documents/New%20project/app.py) から各研究画面へ入れるようにしています。
+
+## Quick Start
+
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+左のナビゲーションから、各アプリを切り替えて使えます。
 
 ## Apps
 
@@ -13,7 +22,7 @@
 - `apps/factor_forecast_lab/app.py`
   - ローリングファクター、レジーム、フーリエ周期シグナルから次優位ファクターを予測します。
 
-## Run
+## Individual Run
 
 ```bash
 streamlit run apps/accounting_workbench/app.py
@@ -26,10 +35,6 @@ streamlit run apps/factor_forecast_lab/app.py
 
 - `apps/` 配下の各アプリは単独起動できます。
 - 共有ロジックは `shared_finance/` にあります。
+- `Factor Forecast Lab` のライブ因子取得は `shared_finance/factor_data_loader.py` に寄せてあるため、`app_stable/` が無くても動きます。
 - IFRS 変換は、現時点では `Accounting Workbench` 内でヒント出力までです。
 - `Factor Forecast Lab` はデモデータ、アップロードデータ、Ken French データの読み込みをサポートします。
-
-## Auto Agent
-
-- `auto_agent/` に Gmail 起点の AI 自動化エージェントひな形を追加しました。
-- 詳細は `auto_agent/README.md` を参照してください。

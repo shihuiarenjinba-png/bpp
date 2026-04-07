@@ -23,7 +23,7 @@ from shared_finance.ui import apply_theme, render_hero, render_section_header
 
 def load_live_factor_data(region: str):
     try:
-        from app_stable.factor_data_loader import load_factor_dataset
+        from shared_finance.factor_data_loader import load_factor_dataset
 
         live = load_factor_dataset(region=region, start_date="2005-01-01", end_date="2026-03-01")
         live = live.reset_index().rename(columns={live.index.name or "index": "Date"})
