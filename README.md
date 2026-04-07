@@ -5,7 +5,7 @@
 ## Quick Start
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-local.txt
 streamlit run app.py
 ```
 
@@ -13,8 +13,9 @@ streamlit run app.py
 
 ## Vercel
 
-Vercel では Streamlit 自体を直接ホストする構成ではなく、依存の重い Python 実行環境を避けるため、静的な `index.html` を案内ページとして返すようにしています。
-そのため、Vercel デプロイ先では各分析アプリの概要とコード導線を確認でき、実際の分析画面はローカルの `streamlit run app.py` で使う想定です。
+Vercel では `Streamlit` をそのまま載せるのではなく、`shared_finance/` のエンジンを呼ぶ軽量な Python UI を `api/index.py` で返す構成にしています。
+そのため、Vercel デプロイ先でも行動ファイナンス、ファクター予測、金融政策、会計整理の主要ロジックを実行できます。
+一方で、ファイルアップロードや `Streamlit` 特有の編集 UI はローカル版のほうが充実しています。
 
 ## Apps
 
@@ -43,3 +44,4 @@ streamlit run apps/factor_forecast_lab/app.py
 - `Factor Forecast Lab` のライブ因子取得は `shared_finance/factor_data_loader.py` に寄せてあるため、`app_stable/` が無くても動きます。
 - IFRS 変換は、現時点では `Accounting Workbench` 内でヒント出力までです。
 - `Factor Forecast Lab` はデモデータ、アップロードデータ、Ken French データの読み込みをサポートします。
+- Vercel 用の軽量 UI は `requirements.txt`、ローカルの `Streamlit` UI は `requirements-local.txt` を使います。

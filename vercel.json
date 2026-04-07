@@ -1,15 +1,14 @@
 {
-  "version": 2,
-  "builds": [
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
     {
-      "src": "index.html",
-      "use": "@vercel/static"
+      "source": "/(.*)",
+      "destination": "/api/index"
     }
   ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
+  "functions": {
+    "api/**/*.py": {
+      "excludeFiles": "{auto_agent/**,apps/**,var/**,.cache/**,index.html,app.py,README.md,**/__pycache__/**}"
     }
-  ]
+  }
 }
