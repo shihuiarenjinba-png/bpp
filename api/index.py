@@ -327,17 +327,23 @@ def _render_factor(params: dict[str, list[str]]) -> str:
 
     raw_factor_data = None
     load_note = ""
+    factor_source_label = "サンプル"
     if source == "live":
         try:
             live = load_factor_dataset(region=region, start_date="2005-01-01", end_date="2026-03-01")
             raw_factor_data = live.reset_index().rename(columns={live.index.name or "index": "Date"})
+            factor_source_label = "ライブ"
             load_note = f"{region} の Ken French データを利用"
+            if live.attrs.get("factor_data_warning"):
+                load_note += f"（補足: {live.attrs['factor_data_warning']}）"
         except Exception as exc:
             raw_factor_data = generate_sample_factor_dataset()
             load_note = f"ライブ取得に失敗したためサンプルへ切り替え: {exc}"
+            factor_source_label = "サンプル代替"
     else:
         raw_factor_data = generate_sample_factor_dataset()
         load_note = "サンプルデータを利用"
+        factor_source_label = "サンプル"
 
     factor_df = prepare_factor_frame(raw_factor_data)
     forecast_df, regime_df = compute_factor_forecast(
@@ -383,6 +389,8 @@ def _render_factor(params: dict[str, list[str]]) -> str:
 
     metrics = _render_metrics(
         [
+            ("利用地域", region),
+            ("結果ソース", factor_source_label),
             ("現在レジーム", str(top_row["current_regime"])),
             ("次優位ファクター", str(top_row["factor"])),
             ("優位確率", _fmt_pct(float(top_row["lead_probability"]))),

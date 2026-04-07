@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import io
+import os
+import tempfile
 import zipfile
 from pathlib import Path
 
@@ -23,7 +25,12 @@ REQUEST_HEADERS = {
     )
 }
 
-CACHE_DIR = Path(__file__).resolve().parents[1] / ".cache" / "factors"
+CACHE_DIR = Path(
+    os.environ.get(
+        "BPP_FACTOR_CACHE_DIR",
+        str(Path(tempfile.gettempdir()) / "bpp_factor_cache"),
+    )
+)
 
 
 def _month_end_index(index: pd.Index) -> pd.DatetimeIndex:
@@ -137,17 +144,31 @@ def _load_from_official_zip(region: str) -> pd.DataFrame:
 
 def load_factor_dataset(region: str, start_date: str, end_date: str) -> pd.DataFrame:
     normalized_region = region if region in DATASET_CONFIG else "US"
+    download_error: Exception | None = None
 
     try:
         df = _load_from_official_zip(normalized_region)
         df = df.loc[start_date:end_date]
-        _save_to_cache(normalized_region, df)
+        try:
+            _save_to_cache(normalized_region, df)
+        except Exception:
+            # Cache write failures should not discard a successfully downloaded dataset.
+            pass
         df.attrs["factor_data_source"] = "official_zip"
         return df
-    except Exception:
-        pass
+    except Exception as exc:
+        download_error = exc
 
-    df = _load_from_cache(normalized_region)
-    df = df.loc[start_date:end_date]
-    df.attrs["factor_data_source"] = "local_cache"
-    return df
+    try:
+        df = _load_from_cache(normalized_region)
+        df = df.loc[start_date:end_date]
+        df.attrs["factor_data_source"] = "local_cache"
+        if download_error is not None:
+            df.attrs["factor_data_warning"] = str(download_error)
+        return df
+    except Exception as cache_exc:
+        message = (
+            f"Failed to load {normalized_region} factor data from the official source "
+            f"or local cache. Official error: {download_error}. Cache error: {cache_exc}."
+        )
+        raise RuntimeError(message) from cache_exc

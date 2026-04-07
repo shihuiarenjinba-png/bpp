@@ -16,3 +16,4 @@ var/*.json
 var/__pycache__/
 app_stable/
 simulator/
+market_data.db
