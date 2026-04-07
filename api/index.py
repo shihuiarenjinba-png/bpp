@@ -163,6 +163,7 @@ def _render_line_chart(title: str, series_list: list[tuple[str, pd.Series, str]]
 
 def _nav(active: str) -> str:
     items = [
+        ("home", "Home"),
         ("behavioral", "Behavioral Gap"),
         ("factor", "Factor Forecast"),
         ("policy", "Monetary Policy"),
@@ -173,6 +174,55 @@ def _nav(active: str) -> str:
         cls = "nav-link active" if key == active else "nav-link"
         links.append(f"<a class='{cls}' href='/?tool={key}'>{escape(label)}</a>")
     return "<div class='nav-row'>" + "".join(links) + "</div>"
+
+
+def _render_home(_: dict[str, list[str]]) -> str:
+    cards = [
+        (
+            "Behavioral Gap",
+            "価格形成のクセを入れた場合の分布差を見る研究ツールです。",
+            "/?tool=behavioral",
+            "/?tool=behavioral&initial_price=100&expected_return_pct=7.5&volatility_pct=16&years=7&n_sims=800",
+        ),
+        (
+            "Factor Forecast",
+            "ファクターの優位候補を、デモかライブの Ken French データで確認できます。",
+            "/?tool=factor",
+            "/?tool=factor&source=demo&region=Japan&horizon_months=6&temperature=0.65&n_sims=1200",
+        ),
+        (
+            "Monetary Policy",
+            "利上げとインフレのトレードオフを、標準シナリオからすぐ確認できます。",
+            "/?tool=policy",
+            "/?tool=policy&initial_inflation_pct=4.2&target_inflation_pct=2.0&total_hike_bps=175&hike_months=8",
+        ),
+        (
+            "Accounting Workbench",
+            "デモ仕訳と手入力テーブルから、分類済みの会計整理をすぐ見られます。",
+            "/?tool=accounting",
+            "/?tool=accounting&use_demo=1",
+        ),
+    ]
+
+    parts = []
+    for title, copy, link, quick in cards:
+        parts.append(
+            "<article class='mini-card'>"
+            f"<h3>{escape(title)}</h3>"
+            f"<p>{escape(copy)}</p>"
+            "<div class='mini-actions'>"
+            f"<a class='ghost-link' href='{link}'>設定を見る</a>"
+            f"<a class='solid-link' href='{quick}'>このまま試す</a>"
+            "</div></article>"
+        )
+
+    return (
+        "<section class='panel'><div class='kicker'>Home</div><h2>まずは目的から選ぶ</h2>"
+        "<p class='copy'>元のアプリに近い感覚で使えるよう、まずはカードから研究テーマを選び、そのまま標準設定で試せるようにしています。</p>"
+        "<div class='card-grid'>"
+        + "".join(parts)
+        + "</div></section>"
+    )
 
 
 def _render_behavioral(params: dict[str, list[str]]) -> str:
@@ -246,9 +296,17 @@ def _render_behavioral(params: dict[str, list[str]]) -> str:
         percent=False,
     )
 
+    preset_row = (
+        "<div class='preset-row'>"
+        "<a class='ghost-link' href='/?tool=behavioral&initial_price=100&expected_return_pct=7.5&volatility_pct=16&years=7&n_sims=800'>標準ケース</a>"
+        "<a class='ghost-link' href='/?tool=behavioral&initial_price=100&expected_return_pct=7.5&volatility_pct=20&years=10&overreaction=1.8&loss_aversion=1.4&herding=1.2'>バイアス強め</a>"
+        "</div>"
+    )
+
     return (
         "<section class='panel'><div class='kicker'>Behavioral Gap</div><h2>伝統モデルと行動モデルの差を実行する</h2>"
         "<p class='copy'>価格形成のクセを入れたときに、平均パスや終値の分布がどれだけずれるかを見ます。</p>"
+        + preset_row
         + form
         + metrics
         + chart_one
@@ -348,9 +406,18 @@ def _render_factor(params: dict[str, list[str]]) -> str:
         ],
         percent=False,
     )
+    preset_row = (
+        "<div class='preset-row'>"
+        "<a class='ghost-link' href='/?tool=factor&source=demo&region=Japan&horizon_months=6&temperature=0.65&n_sims=1200'>標準デモ</a>"
+        "<a class='ghost-link' href='/?tool=factor&source=live&region=Japan&horizon_months=6&temperature=0.65&n_sims=1200'>日本ライブ</a>"
+        "<a class='ghost-link' href='/?tool=factor&source=live&region=US&horizon_months=3&temperature=0.55&n_sims=900'>US短期</a>"
+        "</div>"
+    )
+
     return (
         "<section class='panel'><div class='kicker'>Factor Forecast</div><h2>ファクターの優位候補を実行する</h2>"
         "<p class='copy'>ローリング指標、レジーム、周期シグナルを使って、どのファクターが次に強くなりやすいかを見ます。</p>"
+        + preset_row
         + form
         + f"<p class='note'>{escape(load_note)}</p>"
         + metrics
@@ -446,9 +513,18 @@ def _render_policy(params: dict[str, list[str]]) -> str:
         [("Output gap median", quantiles["output_gap_p50"] * 100.0, "#7d4cc9")],
         percent=False,
     )
+    preset_row = (
+        "<div class='preset-row'>"
+        "<a class='ghost-link' href='/?tool=policy&initial_inflation_pct=4.2&target_inflation_pct=2.0&total_hike_bps=175&hike_months=8'>標準ケース</a>"
+        "<a class='ghost-link' href='/?tool=policy&initial_inflation_pct=5.5&target_inflation_pct=2.0&total_hike_bps=250&hike_months=10&credibility=0.8'>強め利上げ</a>"
+        "<a class='ghost-link' href='/?tool=policy&initial_inflation_pct=3.0&target_inflation_pct=2.0&total_hike_bps=75&hike_months=6&rate_sensitivity=0.4'>穏やかシナリオ</a>"
+        "</div>"
+    )
+
     return (
         "<section class='panel'><div class='kicker'>Monetary Policy</div><h2>利上げシナリオを実行する</h2>"
         "<p class='copy'>政策金利の引き上げが、インフレと景気ギャップにどう効くかを確率的に眺めます。</p>"
+        + preset_row
         + form
         + metrics
         + chart_one
@@ -535,9 +611,17 @@ def _render_accounting(params: dict[str, list[str]]) -> str:
             ("推定支出", f"{summary['expenses']:,.0f} {base_currency}"),
         ]
     )
+    preset_row = (
+        "<div class='preset-row'>"
+        "<a class='ghost-link' href='/?tool=accounting&use_demo=1'>デモ仕訳で試す</a>"
+        "<a class='ghost-link' href='/?tool=accounting&base_currency=USD&opening_cash=500000&reserve_ratio_pct=25&use_demo=1'>USDケース</a>"
+        "</div>"
+    )
+
     return (
         "<section class='panel'><div class='kicker'>Accounting</div><h2>会計整理のコードを実行する</h2>"
         "<p class='copy'>Vercel 版では、デモデータと手入力テーブルをもとに仕訳候補と予算ひな型をすぐ確認できます。</p>"
+        + preset_row
         + form
         + metrics
         + "<div class='two-col'><div class='table-card'><h3>自動分類された仕訳候補</h3>"
@@ -597,10 +681,21 @@ def _page_shell(active_tool: str, content: str) -> str:
       border: 1px solid var(--line); font-weight: 600;
     }}
     .nav-link.active {{ background: var(--accent-2); color: white; border-color: transparent; }}
+    .card-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; margin-top:16px; }}
+    .mini-card {{ background:rgba(255,255,255,0.72); border:1px solid var(--line); border-radius:20px; padding:16px; box-shadow:0 10px 28px rgba(24,34,48,0.05); }}
+    .mini-card h3 {{ margin:0 0 8px 0; font-size:22px; }}
+    .mini-card p {{ margin:0; color:var(--muted); line-height:1.6; font-size:14px; }}
+    .mini-actions {{ display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; }}
+    .solid-link, .ghost-link {{
+      display:inline-flex; align-items:center; justify-content:center; padding:10px 14px; border-radius:999px; text-decoration:none; font-weight:700; font-size:14px;
+    }}
+    .solid-link {{ background:var(--accent); color:white; box-shadow:0 10px 22px rgba(239, 107, 87, 0.28); }}
+    .ghost-link {{ background:rgba(255,255,255,0.85); color:var(--ink); border:1px solid rgba(30,41,59,0.12); }}
     .panel {{ padding: 20px; }}
     .panel h2 {{ margin: 0 0 8px 0; font-size: 28px; }}
     .copy, .note {{ color: var(--muted); line-height: 1.7; }}
     .note {{ margin-top: 8px; font-size: 14px; }}
+    .preset-row {{ display:flex; flex-wrap:wrap; gap:10px; margin:14px 0 2px 0; }}
     .control-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 18px 0; }}
     .control-grid label {{ display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--muted); }}
     .control-grid label.full {{ grid-column: 1 / -1; }}
@@ -668,6 +763,7 @@ def _page_shell(active_tool: str, content: str) -> str:
 
 def _route_content(tool: str, params: dict[str, list[str]]) -> str:
     mapping: dict[str, Callable[[dict[str, list[str]]], str]] = {
+        "home": _render_home,
         "behavioral": _render_behavioral,
         "factor": _render_factor,
         "policy": _render_policy,
@@ -686,7 +782,7 @@ def app(environ, start_response):
         start_response("200 OK", [("Content-Type", "text/plain; charset=utf-8"), ("Content-Length", str(len(body)))])
         return [body]
 
-    tool = _get_arg(params, "tool", "behavioral")
+    tool = _get_arg(params, "tool", "home")
     html = _page_shell(tool, _route_content(tool, params))
     body = html.encode("utf-8")
     headers = [
