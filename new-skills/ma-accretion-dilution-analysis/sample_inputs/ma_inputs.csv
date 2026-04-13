@@ -1,0 +1,15 @@
+field,value,unit,notes
+ni_acquirer,800000000000,currency,Acquirer LTM net income (example scale)
+shares_acquirer,14000000000,shares,Basic weighted shares
+ni_target,120000000000,currency,Target LTM net income
+shares_target,3000000000,shares,Target shares outstanding
+ownership_pct,1.0,ratio,100% acquisition
+consideration_cash,0,currency,No cash consideration in this example
+consideration_shares,2500000000,shares,New shares issued to target shareholders
+new_debt_principal,2000000000000,currency,Debt raised for the deal
+debt_interest_rate,0.04,rate,Annual interest on new debt
+tax_rate,0.30,rate,Corporate tax rate
+synergy_pretax,50000000000,currency,Annual pretax synergies (converted to after-tax in model)
+synergy_aftertax,0,currency,Leave 0 if using synergy_pretax
+one_time_costs_aftertax,10000000000,currency,Transaction costs after tax
+preferred_dividend,0,currency,Optional preferred dividends
