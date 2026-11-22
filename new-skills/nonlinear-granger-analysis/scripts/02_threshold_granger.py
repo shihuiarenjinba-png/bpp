@@ -17,7 +17,16 @@ MACRO_VARS = ["CPI_growth", "IP_growth", "TERM_SPREAD", "DEF_SPREAD",
               "FX_return", "OIL_return", "VIX"]
 
 
+def _finite_pair_df(df, cols):
+    return df[cols].replace([np.inf, -np.inf], np.nan).dropna()
+
+
 def granger_f_test(y, x, lag):
+    if not isinstance(lag, int) or lag < 1:
+        raise ValueError("lag must be >= 1")
+    mask = np.isfinite(y) & np.isfinite(x)
+    y = np.asarray(y)[mask]
+    x = np.asarray(x)[mask]
     n = len(y); T = n - lag
     if T < lag * 3 + 5 or n < 20: return np.nan, np.nan
     Xu = np.ones((T, 1 + 2*lag))
@@ -37,13 +46,19 @@ def granger_f_test(y, x, lag):
 
 
 def run_threshold_granger(data, threshold_var="DEF_SPREAD", max_lag=3):
+    if not isinstance(max_lag, int) or max_lag < 1:
+        raise ValueError("max_lag must be >= 1")
     if threshold_var not in data.columns:
         print(f"警告: {threshold_var} がデータに存在しません")
         return pd.DataFrame()
 
     rows = []
-    # 閾値候補: 15th〜85th percentile の各5%点
-    thresholds = np.percentile(data[threshold_var].dropna(), np.arange(20, 81, 10))
+    threshold_values = pd.to_numeric(data[threshold_var], errors="coerce").replace([np.inf, -np.inf], np.nan).dropna()
+    if len(threshold_values) < 20:
+        print(f"警告: {threshold_var} の有限観測が不足しています")
+        return pd.DataFrame()
+    # 閾値候補
+    thresholds = np.percentile(threshold_values, np.arange(20, 81, 10))
 
     for mv in MACRO_VARS:
         if mv not in data.columns: continue
@@ -59,7 +74,7 @@ def run_threshold_granger(data, threshold_var="DEF_SPREAD", max_lag=3):
                 low_regime  = data[data[threshold_var] <= thr]
 
                 for regime_name, regime_data in [("高体制", high_regime), ("低体制", low_regime)]:
-                    subset = regime_data[[factor, mv]].dropna()
+                    subset = _finite_pair_df(regime_data, [factor, mv])
                     if len(subset) < 20: continue
                     lag = min(max_lag, max(1, len(subset)//15))
                     F, p = granger_f_test(subset[factor].values, subset[mv].values, lag)
@@ -69,7 +84,7 @@ def run_threshold_granger(data, threshold_var="DEF_SPREAD", max_lag=3):
                         best_result = (regime_name, p, F, lag, len(subset))
 
             # 全体p値
-            full_sub = data[[factor, mv]].dropna()
+            full_sub = _finite_pair_df(data, [factor, mv])
             F_full, p_full = granger_f_test(full_sub[factor].values, full_sub[mv].values,
                                              min(max_lag, max(1, len(full_sub)//15)))
 

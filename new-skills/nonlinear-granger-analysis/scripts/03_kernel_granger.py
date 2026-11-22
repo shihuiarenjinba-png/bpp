@@ -31,6 +31,14 @@ def nonlinear_granger_stat(y, x, lag=1):
     非線形グレンジャー統計量（カーネル密度比ベース）
     H0: x_{t-lag}はy_tに情報をもたらさない（条件付き独立）
     """
+    if not isinstance(lag, int) or lag < 1:
+        raise ValueError("lag must be >= 1")
+    y = np.asarray(y, dtype=float)
+    x = np.asarray(x, dtype=float)
+    if y.shape != x.shape:
+        raise ValueError("y and x must have the same length")
+    mask = np.isfinite(y) & np.isfinite(x)
+    y, x = y[mask], x[mask]
     n = len(y)
     T = n - lag
     if T < 20: return np.nan
@@ -67,6 +75,8 @@ def nonlinear_granger_stat(y, x, lag=1):
 
 def permutation_test(y, x, lag=1, n_perm=199, seed=42):
     """置換検定でp値を計算"""
+    if not isinstance(n_perm, int) or n_perm < 1:
+        raise ValueError("n_perm must be >= 1")
     rng = np.random.default_rng(seed)
     obs_stat = nonlinear_granger_stat(y, x, lag)
     if np.isnan(obs_stat): return np.nan, np.nan
@@ -83,6 +93,10 @@ def permutation_test(y, x, lag=1, n_perm=199, seed=42):
 
 
 def run_kernel_granger(data, n_perm=199, lag=1):
+    if not isinstance(lag, int) or lag < 1:
+        raise ValueError("lag must be >= 1")
+    if not isinstance(n_perm, int) or n_perm < 1:
+        raise ValueError("n_perm must be >= 1")
     print(f"カーネルグレンジャー検定（置換数={n_perm}）実行中...")
     rows = []
     total = sum(1 for mv in MACRO_VARS if mv in data.columns
@@ -93,7 +107,7 @@ def run_kernel_granger(data, n_perm=199, lag=1):
         for factor in FACTORS:
             if factor not in data.columns: continue
             count += 1
-            subset = data[[factor, mv]].dropna()
+            subset = data[[factor, mv]].replace([np.inf, -np.inf], np.nan).dropna()
             stat, p = permutation_test(subset[factor].values, subset[mv].values, lag, n_perm)
             rows.append({
                 "マクロ変数": mv, "ファクター": factor,
@@ -102,8 +116,9 @@ def run_kernel_granger(data, n_perm=199, lag=1):
                 "置換p値": round(p, 4) if not np.isnan(p) else np.nan,
                 "有意（p<0.05）": "★" if (not np.isnan(p) and p < 0.05) else "",
             })
-            ps = f"{p:.3f}" if not np.isnan(p) else "N/A"
-            print(f"  [{count}/{total}] {mv:15s} → {factor:8s} | T={stat:.2f if not np.isnan(stat) else 0:.2f} | p={ps}")
+            ps = f"{p:.3f}" if np.isfinite(p) else "N/A"
+            stat_text = f"{stat:.2f}" if np.isfinite(stat) else "N/A"
+            print(f"  [{count}/{total}] {mv:15s} → {factor:8s} | T={stat_text} | p={ps}")
     return pd.DataFrame(rows)
 
 
