@@ -72,9 +72,12 @@ class PortfolioAnalyzer:
             raise FileNotFoundError(f"ファイルが見つかりません: {input_path}")
 
         try:
-            self.df = pd.read_csv(input_path, encoding='utf-8')
+            self.df = pd.read_csv(input_path, encoding='utf-8-sig', skip_blank_lines=True)
         except UnicodeDecodeError:
-            self.df = pd.read_csv(input_path, encoding='shift_jis')
+            self.df = pd.read_csv(input_path, encoding='cp932', skip_blank_lines=True)
+
+        self.df.columns = [str(col).strip().lstrip('\ufeff') for col in self.df.columns]
+        self.df = self.df.dropna(how='all').reset_index(drop=True)
 
         # 必要な列の確認
         required_columns = ['銘柄', '取得価格', '数量', '現在価格', 'セクター']
@@ -88,19 +91,35 @@ class PortfolioAnalyzer:
         """データの妥当性をチェック"""
         logger.info("データの妥当性をチェック中...")
 
-        # 数値列の型確認・変換
+        if self.df is None or self.df.empty:
+            raise ValueError("分析対象データが空です")
+
+        # 識別列の検証
+        self.df['銘柄'] = self.df['銘柄'].astype(str).str.strip()
+        self.df['セクター'] = self.df['セクター'].astype(str).str.strip()
+        invalid_text = {'', 'nan', 'none', 'null', 'na', 'n/a'}
+        if self.df['銘柄'].str.lower().isin(invalid_text).any():
+            raise ValueError("銘柄に空欄または不正値があります")
+        if self.df['セクター'].str.lower().isin(invalid_text).any():
+            raise ValueError("セクターに空欄または不正値があります")
+        if self.df['銘柄'].duplicated().any():
+            dup = self.df.loc[self.df['銘柄'].duplicated(), '銘柄'].iloc[0]
+            raise ValueError(f"銘柄が重複しています: {dup}")
+
+        # 数値列の型確認・変換（桁区切りカンマは許容）
         numeric_cols = ['取得価格', '数量', '現在価格']
         for col in numeric_cols:
-            try:
-                self.df[col] = pd.to_numeric(self.df[col])
-            except ValueError as e:
-                raise ValueError(f"列 '{col}' に数値以外のデータが含まれています: {e}")
+            cleaned = self.df[col].astype(str).str.strip().str.replace(',', '', regex=False)
+            self.df[col] = pd.to_numeric(cleaned, errors='coerce')
+            invalid = self.df[col].isna() | ~np.isfinite(self.df[col])
+            if invalid.any():
+                row = int(np.flatnonzero(invalid.to_numpy())[0]) + 2
+                raise ValueError(f"列 '{col}' の{row}行目に空欄・非数値・非有限値があります")
 
-        # 負数チェック
         if (self.df['取得価格'] <= 0).any() or (self.df['現在価格'] <= 0).any():
-            raise ValueError("価格は正の数である必要があります")
+            raise ValueError("価格は正の有限数である必要があります")
         if (self.df['数量'] <= 0).any():
-            raise ValueError("数量は正の数である必要があります")
+            raise ValueError("数量は正の有限数である必要があります")
 
         logger.info("データ検証完了")
 
