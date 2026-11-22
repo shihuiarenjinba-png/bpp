@@ -38,6 +38,11 @@ MACRO_VARS = ["CPI_growth", "IP_growth", "TERM_SPREAD", "DEF_SPREAD",
 VIX_START = pd.Timestamp("1990-01-01")
 
 
+def _finite_pair(y: pd.Series, x: pd.Series) -> pd.DataFrame:
+    df = pd.concat([y, x], axis=1).replace([np.inf, -np.inf], np.nan).dropna()
+    return df
+
+
 # ─── グレンジャー検定 ────────────────────────────────────────────────────────
 
 def select_lag_bic(y: pd.Series, x: pd.Series, max_lag: int) -> int:
@@ -52,7 +57,9 @@ def select_lag_bic(y: pd.Series, x: pd.Series, max_lag: int) -> int:
     Returns:
         BIC最小化ラグ次数（1〜max_lag）
     """
-    df = pd.concat([y, x], axis=1).dropna()
+    if not isinstance(max_lag, int) or max_lag < 1:
+        raise ValueError("max_lag must be >= 1")
+    df = _finite_pair(y, x)
     bics = []
     for lag in range(1, max_lag + 1):
         try:
@@ -83,7 +90,9 @@ def run_granger_test(
     Returns:
         {'f_stat': float, 'p_value': float, 'lag': int, 'n_obs': int}
     """
-    df = pd.concat([y, x], axis=1).dropna()
+    if not isinstance(lag, int) or lag < 1:
+        raise ValueError("lag must be >= 1")
+    df = _finite_pair(y, x)
     if len(df) < lag * 3 + 10:
         return {"f_stat": np.nan, "p_value": np.nan, "lag": lag, "n_obs": len(df)}
 
@@ -119,9 +128,9 @@ def run_all_granger(data: pd.DataFrame, max_lag: int = 6) -> pd.DataFrame:
 
             # VIXはサブサンプルを使用
             if macro_var == "VIX":
-                subset = data[[factor, macro_var]].loc[data.index >= VIX_START].dropna()
+                subset = data[[factor, macro_var]].loc[data.index >= VIX_START].replace([np.inf, -np.inf], np.nan).dropna()
             else:
-                subset = data[[factor, macro_var]].dropna()
+                subset = data[[factor, macro_var]].replace([np.inf, -np.inf], np.nan).dropna()
 
             y = subset[factor]
             x = subset[macro_var]
@@ -156,10 +165,11 @@ def add_significance_flags(df: pd.DataFrame, alpha: float = 0.05) -> pd.DataFram
         df    : run_all_granger()の出力DataFrame
         alpha : 有意水準（デフォルト0.05）
     """
-    n_tests = len(df.dropna(subset=["p値"]))
-    alpha_bonf = alpha / n_tests
-
     df = df.copy()
+    if "p値" not in df.columns:
+        df["p値"] = pd.Series(dtype=float)
+    n_tests = len(df.replace([np.inf, -np.inf], np.nan).dropna(subset=["p値"]))
+    alpha_bonf = alpha / n_tests if n_tests > 0 else np.nan
     df["補正前有意（p<0.05）"]  = df["p値"] < alpha
     df["Bonferroni補正後有意"] = df["p値"] < alpha_bonf
     df["Bonferroni補正後α"]   = round(alpha_bonf, 6)
@@ -219,9 +229,12 @@ def main():
     print("\n=== p値マトリックス（論文 表4.3） ===")
     print(p_matrix.to_string())
 
-    n_total = len(results_df.dropna(subset=["p値"]))
-    alpha_bonf = args.alpha / n_total
-    print(f"\nBonferroni補正後有意水準: {alpha_bonf:.4f} (= {args.alpha}/{n_total})")
+    n_total = len(results_df.replace([np.inf, -np.inf], np.nan).dropna(subset=["p値"]))
+    alpha_bonf = args.alpha / n_total if n_total > 0 else np.nan
+    if n_total > 0:
+        print(f"\nBonferroni補正後有意水準: {alpha_bonf:.4f} (= {args.alpha}/{n_total})")
+    else:
+        print("\nBonferroni補正: 有効な検定結果がないため計算しません。")
 
     bonf_sig = results_df[results_df["Bonferroni補正後有意"] == True]
     print(f"\n★ Bonferroni補正後も有意な結果: {len(bonf_sig)}件")
